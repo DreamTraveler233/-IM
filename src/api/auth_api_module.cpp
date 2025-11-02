@@ -3,6 +3,7 @@
 #include <jwt-cpp/jwt.h>
 
 #include "app/auth_service.hpp"
+#include "app/common_service.hpp"
 #include "base/macro.hpp"
 #include "common/common.hpp"
 #include "config/config.hpp"
@@ -22,48 +23,6 @@ static auto g_jwt_expires_in =
 
 AuthApiModule::AuthApiModule() : Module("api.auth", "0.1.0", "builtin") {}
 
-/* 构造用户详情响应的JSON字符串 */
-static std::string MakeUserDetailJson(const std::string& uid) {
-    // TODO: 由用户服务从DB读取，当前返回占位数据
-    Json::Value data;
-    data["id"] = static_cast<Json::Int64>(std::stoll(uid.empty() ? "1" : uid));
-    data["mobile"] = "18800000000";
-    data["nickname"] = "demo";
-    data["avatar"] = "";
-    data["gender"] = 0;
-    data["motto"] = "Hello, CIM";
-    data["email"] = "demo@example.com";
-    data["birthday"] = "1990-01-01";
-
-    Json::Value root;
-    root["code"] = 0;
-    root["msg"] = "ok";
-    root["data"] = data;
-    return CIM::JsonUtil::ToString(root);
-}
-
-// 从请求中提取认证相关字段
-static void ExtractLoginFields(CIM::http::HttpRequest::ptr req, std::string& mobile,
-                               std::string& password, std::string& platform) {
-    Json::Value body;
-    if (ParseBody(req->getBody(), body)) {
-        mobile = CIM::JsonUtil::GetString(body, "mobile", "");
-        password = CIM::JsonUtil::GetString(body, "password", "");
-        platform = CIM::JsonUtil::GetString(body, "platform", "web");
-        if (!mobile.empty() || !password.empty()) return;
-    }
-}
-
-static void ExtractPasswordUpdateFields(CIM::http::HttpRequest::ptr req, std::string& old_pwd,
-                                        std::string& new_pwd) {
-    Json::Value body;
-    if (ParseBody(req->getBody(), body)) {
-        old_pwd = CIM::JsonUtil::GetString(body, "old_password", "");
-        new_pwd = CIM::JsonUtil::GetString(body, "new_password", "");
-        if (!new_pwd.empty()) return;
-    }
-}
-
 /* 服务器准备就绪时注册认证相关路由 */
 bool AuthApiModule::onServerReady() {
     std::vector<CIM::TcpServer::ptr> httpServers;
@@ -81,8 +40,6 @@ bool AuthApiModule::onServerReady() {
         dispatch->addServlet("/api/v1/auth/login", [](CIM::http::HttpRequest::ptr req,
                                                       CIM::http::HttpResponse::ptr res,
                                                       CIM::http::HttpSession::ptr /*session*/) {
-            CIM_LOG_DEBUG(g_logger) << "/api/v1/auth/login";
-
             /* 设置响应头 */
             res->setHeader("Content-Type", "application/json");
 
@@ -97,22 +54,34 @@ bool AuthApiModule::onServerReady() {
             }
 
             /* 鉴权用户 */
-            auto Result = CIM::app::AuthService::Authenticate(mobile, password);
-            if (!Result.ok) {
+            auto result = CIM::app::AuthService::Authenticate(mobile, password, platform);
+
+            /*记录登录日志*/
+            std::string err;
+            if (result.user.id != 0) {
+                if (!CIM::app::AuthService::LogLogin(result, platform, &err)) {
+                    CIM_LOG_ERROR(g_logger)
+                        << "Log login failed for user id " << result.user.id << ": " << err;
+                }
+            }
+
+            if (!result.ok) {
                 res->setStatus(CIM::http::HttpStatus::UNAUTHORIZED);
-                res->setBody(Error(401, Result.err));
+                res->setBody(Error(401, result.err));
                 return 0;
             }
 
             /* 签发JWT */
             std::string token;
             try {
-                token = SignJwt(std::to_string(Result.user.id), g_jwt_expires_in->getValue());
+                token = SignJwt(std::to_string(result.user.id), g_jwt_expires_in->getValue());
             } catch (const std::exception& e) {
                 res->setStatus(CIM::http::HttpStatus::INTERNAL_SERVER_ERROR);
                 res->setBody(Error(500, "令牌签名失败！"));
                 return 0;
             }
+
+            /*Token持久化*/
 
             /* 构造并设置响应体 */
             Json::Value data;
@@ -133,18 +102,27 @@ bool AuthApiModule::onServerReady() {
             res->setHeader("Content-Type", "application/json");
 
             /* 提取请求字段 */
-            std::string mobile, password, platform, email, nickname;
+            std::string nickname, mobile, password, sms_code, platform;
             Json::Value body;
             if (ParseBody(req->getBody(), body)) {
+                nickname = CIM::JsonUtil::GetString(body, "nickname", "user");
                 mobile = CIM::JsonUtil::GetString(body, "mobile", "");
                 password = CIM::JsonUtil::GetString(body, "password", "");
+                sms_code = CIM::JsonUtil::GetString(body, "sms_code", "");
                 platform = CIM::JsonUtil::GetString(body, "platform", "web");
-                email = CIM::JsonUtil::GetString(body, "email", "");
-                nickname = CIM::JsonUtil::GetString(body, "nickname", "user");
+            }
+
+            /* 验证短信验证码 */
+            auto verifyResult =
+                CIM::app::CommonService::VerifySmsCode(mobile, sms_code, "register");
+            if (!verifyResult.ok) {
+                res->setStatus(CIM::http::HttpStatus::BAD_REQUEST);
+                res->setBody(Error(400, verifyResult.err));
+                return 0;
             }
 
             /* 注册用户 */
-            auto authResult = CIM::app::AuthService::Register(mobile, password, email, nickname);
+            auto authResult = CIM::app::AuthService::Register(mobile, password, sms_code, nickname);
             if (!authResult.ok) {
                 res->setStatus(CIM::http::HttpStatus::BAD_REQUEST);
                 res->setBody(Error(400, authResult.err));
@@ -173,22 +151,31 @@ bool AuthApiModule::onServerReady() {
         /*找回密码接口*/
         dispatch->addServlet("/api/v1/auth/forget", [](CIM::http::HttpRequest::ptr req,
                                                        CIM::http::HttpResponse::ptr res,
-                                                       CIM::http::HttpSession::ptr /*session*/) {
+                                                       CIM::http::HttpSession::ptr session) {
             CIM_LOG_DEBUG(g_logger) << "/api/v1/auth/forget";
             /* 设置响应头 */
             res->setHeader("Content-Type", "application/json");
 
             /*提取请求字段*/
-            std::string mobile, new_password, channel;
+            std::string mobile, password, sms_code;
             Json::Value body;
             if (ParseBody(req->getBody(), body)) {
                 mobile = CIM::JsonUtil::GetString(body, "mobile", "");
-                new_password = CIM::JsonUtil::GetString(body, "password", "");
-                channel = CIM::JsonUtil::GetString(body, "channel", "");
+                password = CIM::JsonUtil::GetString(body, "password", "");
+                sms_code = CIM::JsonUtil::GetString(body, "sms_code", "");
+            }
+
+            /* 验证短信验证码 */
+            auto verifyResult =
+                CIM::app::CommonService::VerifySmsCode(mobile, sms_code, "forget_account");
+            if (!verifyResult.ok) {
+                res->setStatus(CIM::http::HttpStatus::BAD_REQUEST);
+                res->setBody(Error(400, verifyResult.err));
+                return 0;
             }
 
             /* 找回密码 */
-            auto authResult = CIM::app::AuthService::Forget(mobile, new_password);
+            auto authResult = CIM::app::AuthService::Forget(mobile, password);
             if (!authResult.ok) {
                 res->setStatus(CIM::http::HttpStatus::BAD_REQUEST);
                 res->setBody(Error(400, authResult.err));

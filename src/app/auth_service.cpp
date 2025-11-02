@@ -1,6 +1,7 @@
 #include "app/auth_service.hpp"
 
 #include "crypto_module.hpp"
+#include "dao/user_login_log_dao.hpp"
 #include "macro.hpp"
 #include "util/hash_util.hpp"
 #include "util/password.hpp"
@@ -64,7 +65,8 @@ AuthResult AuthService::Register(const std::string& mobile, const std::string& p
     return result;
 }
 
-AuthResult AuthService::Authenticate(const std::string& mobile, const std::string& password) {
+AuthResult AuthService::Authenticate(const std::string& mobile, const std::string& password,
+                                     const std::string& platform) {
     AuthResult result;
 
     /*密码解密*/
@@ -90,13 +92,14 @@ AuthResult AuthService::Authenticate(const std::string& mobile, const std::strin
     /*获取用户信息*/
     CIM::dao::User u;
     if (!CIM::dao::UserDAO::GetByMobile(mobile, u)) {
-        result.err = "账号或密码错误！";
+        result.err = "手机号或密码错误！";
         return result;
     }
 
     /*验证密码*/
     if (!CIM::util::Password::Verify(decrypted_pwd, u.password_hash)) {
-        result.err = "账号或密码错误！";
+        result.err = "手机号或密码错误";
+        result.user = std::move(u);
         return result;
     }
 
@@ -159,35 +162,18 @@ AuthResult AuthService::Forget(const std::string& mobile, const std::string& new
     return result;
 }
 
-AuthResult AuthService::ChangePassword(uint64_t uid, const std::string& old_password,
-                                       const std::string& new_password) {
-    AuthResult result;
-    if (new_password.size() < 6) {
-        result.err = "new_password too short";
-        return result;
-    }
-    CIM::dao::User u;
-    if (!CIM::dao::UserDAO::GetById(uid, u)) {
-        result.err = "user not found";
-        return result;
-    }
-    if (!CIM::util::Password::Verify(old_password, u.password_hash)) {
-        result.err = "old_password mismatch";
-        return result;
-    }
-    auto ph = CIM::util::Password::Hash(new_password);
-    if (ph.empty()) {
-        result.err = "hash failed";
-        return result;
-    }
-    std::string err;
-    if (!CIM::dao::UserDAO::UpdatePassword(uid, ph, &err)) {
-        result.err = err.empty() ? std::string("update failed") : err;
-        return result;
-    }
-    result.ok = true;
-    result.user = std::move(u);
-    return result;
-}
+bool AuthService::LogLogin(const AuthResult& result, const std::string& platform,
+                           std::string* err) {
+    CIM::dao::UserLoginLog log;
+    log.user_id = result.user.id;
+    log.platform = platform;
+    log.login_at = TimeUtil::NowToS();
+    log.status = result.ok ? 1 : 2;
 
+    uint64_t out_id;
+    if (!CIM::dao::UserLoginLogDAO::Create(log, out_id, err)) {
+        return false;
+    }
+    return true;
+}
 }  // namespace CIM::app

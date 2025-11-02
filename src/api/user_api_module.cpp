@@ -30,18 +30,13 @@ bool UserApiModule::onServerReady() {
                                                        CIM::http::HttpResponse::ptr res,
                                                        CIM::http::HttpSession::ptr) {
             CIM_LOG_DEBUG(g_logger) << "/api/v1/user/detail";
+            /*设置响应头*/
             res->setHeader("Content-Type", "application/json");
-            std::string nickname, mobile, email, gender, motto, avatar, birthday;
-            Json::Value body;
-            if (CIM::ParseBody(req->getBody(), body)) {
-                nickname = CIM::JsonUtil::GetString(body, "nickname", "");
-                mobile = CIM::JsonUtil::GetString(body, "mobile", "");
-                email = CIM::JsonUtil::GetString(body, "email", "");
-                gender = CIM::JsonUtil::GetString(body, "gender", "");
-                motto = CIM::JsonUtil::GetString(body, "motto", "");
-                avatar = CIM::JsonUtil::GetString(body, "avatar", "");
-                birthday = CIM::JsonUtil::GetString(body, "birthday", "");
-            }
+
+            /*加载用户信息*/
+
+            
+            /*返回结果*/
             res->setBody(Ok());
             return 0;
         });

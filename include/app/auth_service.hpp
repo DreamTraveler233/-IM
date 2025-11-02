@@ -5,6 +5,7 @@
 #include <string>
 
 #include "dao/user_dao.hpp"
+#include "dao/user_login_log_dao.hpp"
 
 namespace CIM::app {
 
@@ -22,14 +23,14 @@ class AuthService {
                                const std::string& nickname = std::string());
 
     // 鉴权用户
-    static AuthResult Authenticate(const std::string& mobile, const std::string& password);
+    static AuthResult Authenticate(const std::string& mobile, const std::string& password,
+                                   const std::string& platform);
 
     // 找回密码
     static AuthResult Forget(const std::string& mobile, const std::string& new_password);
 
-    // 修改用户密码
-    static AuthResult ChangePassword(uint64_t uid, const std::string& old_password,
-                                     const std::string& new_password);
+    // 登录日志
+    static bool LogLogin(const AuthResult& result, const std::string& platform, std::string* err = nullptr);
 };
 
 }  // namespace CIM::app

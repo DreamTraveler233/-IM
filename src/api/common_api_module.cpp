@@ -22,39 +22,40 @@ bool CommonApiModule::onServerReady() {
         return true;
     }
 
+    // 初始化验证码清理定时器（幂等）
+    CIM::app::CommonService::InitCleanupTimer();
+
     for (auto& s : httpServers) {
         auto http = std::dynamic_pointer_cast<CIM::http::HttpServer>(s);
         if (!http) continue;
         auto dispatch = http->getServletDispatch();
 
         // 发送短信验证码
-        dispatch->addServlet("/api/v1/common/send-sms",
-                             [](CIM::http::HttpRequest::ptr req, CIM::http::HttpResponse::ptr res,
-                                CIM::http::HttpSession::ptr /*session*/) {
-                                 CIM_LOG_DEBUG(g_logger) << "/api/v1/common/send-sms";
+        dispatch->addServlet("/api/v1/common/send-sms", [](CIM::http::HttpRequest::ptr req,
+                                                           CIM::http::HttpResponse::ptr res,
+                                                           CIM::http::HttpSession::ptr session) {
+            CIM_LOG_DEBUG(g_logger) << "/api/v1/common/send-sms";
 
-                                 /* 设置响应头 */
-                                 res->setHeader("Content-Type", "application/json");
+            /* 设置响应头 */
+            res->setHeader("Content-Type", "application/json");
 
-                                 /* 提取字段 */
-                                 std::string mobile, channel;
-                                 Json::Value body;
-                                 if (ParseBody(req->getBody(), body)) {
-                                     mobile = CIM::JsonUtil::GetString(body, "mobile", mobile);
-                                     channel = CIM::JsonUtil::GetString(body, "channel", channel);
-                                 }
+            /* 提取字段 */
+            std::string mobile, channel;
+            Json::Value body;
+            if (ParseBody(req->getBody(), body)) {
+                mobile = CIM::JsonUtil::GetString(body, "mobile", mobile);
+                channel = CIM::JsonUtil::GetString(body, "channel", channel);
+            }
 
-                                 /* 生成验证码 */
-                                 std::string sms_code = CIM::app::CommonService::SendSmsCode();
+            /* 发送短信验证码 */
+            auto result = CIM::app::CommonService::SendSmsCode(mobile, channel, session);
 
-                                 // TODO: 集成实际短信网关（阿里云/腾讯云/云片等），当前返回验证码用于开发联调
-
-                                 /* 构造并设置响应体 */
-                                 Json::Value data;
-                                 data["sms_code"] = sms_code;
-                                 res->setBody(Ok(data));
-                                 return 0;
-                             });
+            /* 构造并设置响应体 */
+            Json::Value data;
+            data["sms_code"] = result.sms_code.sms_code;
+            res->setBody(Ok(data));
+            return 0;
+        });
 
         // 注册邮箱服务（占位实现）
         dispatch->addServlet(

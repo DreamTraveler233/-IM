@@ -72,12 +72,8 @@ CREATE TABLE IF NOT EXISTS user_login_logs (
   id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,        -- 日志ID
   user_id      BIGINT UNSIGNED NOT NULL,                          -- 用户ID
   platform     VARCHAR(32) NOT NULL,                               -- 登录平台
-  login_ip     VARCHAR(45),                                        -- 登录IP
-  login_agent  VARCHAR(255),                                       -- 用户代理字符串
-  login_city   VARCHAR(128),                                       -- 登录城市（可选，通过IP解析）
   login_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,       -- 登录时间
   status       TINYINT UNSIGNED NOT NULL DEFAULT 1,                -- 登录状态：1成功 2失败
-  remark       VARCHAR(255),                                       -- 备注信息
   KEY idx_user_login_logs_user (user_id, login_at),               -- 用户+时间索引
   CONSTRAINT fk_user_login_logs_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE -- 外键约束
 ) ENGINE=InnoDB;
