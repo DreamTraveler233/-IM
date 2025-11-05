@@ -79,6 +79,7 @@
         "valarray": "cpp",
         "variant": "cpp",
         "forward_list": "cpp",
-        "ranges": "cpp"
+        "ranges": "cpp",
+        "csetjmp": "cpp"
     }
 }

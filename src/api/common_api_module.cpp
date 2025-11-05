@@ -44,8 +44,8 @@ bool CommonApiModule::onServerReady() {
             std::string mobile, channel;
             Json::Value body;
             if (ParseBody(req->getBody(), body)) {
-                mobile = CIM::JsonUtil::GetString(body, "mobile", mobile);
-                channel = CIM::JsonUtil::GetString(body, "channel", channel);
+                mobile = CIM::JsonUtil::GetString(body, "mobile");
+                channel = CIM::JsonUtil::GetString(body, "channel");
             }
 
             /*判断手机号是否已经注册*/

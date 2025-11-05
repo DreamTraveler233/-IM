@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash     VARCHAR(255) NOT NULL,                        -- 密码哈希，使用PBKDF2+盐
   avatar            VARCHAR(255),                                 -- 头像URL，可选
   motto             VARCHAR(255),                                 -- 个性签名，可选
-  gender            TINYINT UNSIGNED NOT NULL DEFAULT 0,         -- 性别：0未知 1男 2女
+  birthday          DATE,                                        -- 生日，可选
+  gender            TINYINT UNSIGNED NOT NULL DEFAULT 0,         -- 性别：0- 1男 2女 3未知
   is_robot          TINYINT UNSIGNED NOT NULL DEFAULT 0,         -- 是否机器人：0否 1是
   is_qiye           TINYINT UNSIGNED NOT NULL DEFAULT 0,         -- 是否企业用户：0否 1是
   status            TINYINT UNSIGNED NOT NULL DEFAULT 1,         -- 账户状态：1正常 2禁用

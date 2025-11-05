@@ -9,9 +9,9 @@
 namespace CIM::app {
 static auto g_logger = CIM_LOG_NAME("root");
 
-AuthResult AuthService::Register(const std::string& nickname, const std::string& mobile,
+UserResult AuthService::Register(const std::string& nickname, const std::string& mobile,
                                  const std::string& password, const std::string& platform) {
-    AuthResult result;
+    UserResult result;
 
     /*使用Base64解码密码并RSA解密*/
     // Base64 解码
@@ -57,9 +57,9 @@ AuthResult AuthService::Register(const std::string& nickname, const std::string&
     return result;
 }
 
-AuthResult AuthService::Authenticate(const std::string& mobile, const std::string& password,
+UserResult AuthService::Authenticate(const std::string& mobile, const std::string& password,
                                      const std::string& platform) {
-    AuthResult result;
+    UserResult result;
 
     /*密码解密*/
     // Base64 解码
@@ -105,8 +105,8 @@ AuthResult AuthService::Authenticate(const std::string& mobile, const std::strin
     return result;
 }
 
-AuthResult AuthService::Forget(const std::string& mobile, const std::string& new_password) {
-    AuthResult result;
+UserResult AuthService::Forget(const std::string& mobile, const std::string& new_password) {
+    UserResult result;
 
     /*密码解密*/
     // Base64 解码
@@ -154,7 +154,7 @@ AuthResult AuthService::Forget(const std::string& mobile, const std::string& new
     return result;
 }
 
-bool AuthService::LogLogin(const AuthResult& result, const std::string& platform,
+bool AuthService::LogLogin(const UserResult& result, const std::string& platform,
                            std::string* err) {
     CIM::dao::UserLoginLog log;
     log.user_id = result.user.id;

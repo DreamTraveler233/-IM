@@ -2,7 +2,10 @@
 #define __CIM_COMMON_COMMON_HPP__
 
 #include <jsoncpp/json/json.h>
+
 #include <string>
+
+#include "http.hpp"
 
 namespace CIM {
 
@@ -23,6 +26,9 @@ bool VerifyJwt(const std::string& token, std::string* out_uid = nullptr);
 
 // JWT 是否过期
 bool IsJwtExpired(const std::string& token);
+
+// 从请求中提取 uid
+uint64_t GetUidFromToken(CIM::http::HttpRequest::ptr req, CIM::http::HttpResponse::ptr res);
 
 }  // namespace CIM
 

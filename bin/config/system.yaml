@@ -29,5 +29,5 @@ mysql.dbs:
 sms:
   enabled: true                   # 是否启用短信服务
   provider: aliyun                # 短信服务提供商，支持 aliyun/tencent/mock
-  code_ttl_secs: 60               # 验证码有效期，单位秒
+  code_ttl_secs: 600               # 验证码有效期，单位秒
   code_cleanup_interval: 3600     # 验证码清理间隔，单位秒

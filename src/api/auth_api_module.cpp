@@ -48,9 +48,9 @@ bool AuthApiModule::onServerReady() {
             std::string mobile, password, platform;
             Json::Value body;
             if (ParseBody(req->getBody(), body)) {
-                mobile = CIM::JsonUtil::GetString(body, "mobile", "");
-                password = CIM::JsonUtil::GetString(body, "password", "");
-                platform = CIM::JsonUtil::GetString(body, "platform", "web");
+                mobile = CIM::JsonUtil::GetString(body, "mobile");
+                password = CIM::JsonUtil::GetString(body, "password");
+                platform = CIM::JsonUtil::GetString(body, "platform");
                 // 前端已经确保手机号和密码不为空，不用判断是否存在该字段
             }
 
@@ -105,11 +105,11 @@ bool AuthApiModule::onServerReady() {
             std::string nickname, mobile, password, sms_code, platform;
             Json::Value body;
             if (ParseBody(req->getBody(), body)) {
-                nickname = CIM::JsonUtil::GetString(body, "nickname", "user");
-                mobile = CIM::JsonUtil::GetString(body, "mobile", "");
-                password = CIM::JsonUtil::GetString(body, "password", "");
-                sms_code = CIM::JsonUtil::GetString(body, "sms_code", "");
-                platform = CIM::JsonUtil::GetString(body, "platform", "web");
+                nickname = CIM::JsonUtil::GetString(body, "nickname");
+                mobile = CIM::JsonUtil::GetString(body, "mobile");
+                password = CIM::JsonUtil::GetString(body, "password");
+                sms_code = CIM::JsonUtil::GetString(body, "sms_code");
+                platform = CIM::JsonUtil::GetString(body, "platform");
             }
 
             /* 验证短信验证码 */
@@ -170,9 +170,9 @@ bool AuthApiModule::onServerReady() {
             std::string mobile, password, sms_code;
             Json::Value body;
             if (ParseBody(req->getBody(), body)) {
-                mobile = CIM::JsonUtil::GetString(body, "mobile", "");
-                password = CIM::JsonUtil::GetString(body, "password", "");
-                sms_code = CIM::JsonUtil::GetString(body, "sms_code", "");
+                mobile = CIM::JsonUtil::GetString(body, "mobile");
+                password = CIM::JsonUtil::GetString(body, "password");
+                sms_code = CIM::JsonUtil::GetString(body, "sms_code");
             }
 
             /* 验证短信验证码 */
