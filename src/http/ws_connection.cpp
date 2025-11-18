@@ -5,36 +5,41 @@
 namespace CIM::http {
 WSConnection::WSConnection(Socket::ptr sock, bool owner) : HttpConnection(sock, owner) {}
 
-std::pair<HttpResult::ptr, WSConnection::ptr> WSConnection::Create(const std::string& url, uint64_t timeout_ms,
-                                                                   const std::map<std::string, std::string>& headers) {
+std::pair<HttpResult::ptr, WSConnection::ptr> WSConnection::Create(
+    const std::string& url, uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers) {
     Uri::ptr uri = Uri::Create(url);
     if (!uri) {
-        return std::make_pair(
-            std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL, nullptr, "invalid url:" + url), nullptr);
+        return std::make_pair(std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL,
+                                                           nullptr, "invalid url:" + url),
+                              nullptr);
     }
     return Create(uri, timeout_ms, headers);
 }
 
-std::pair<HttpResult::ptr, WSConnection::ptr> WSConnection::Create(Uri::ptr uri, uint64_t timeout_ms,
-                                                                   const std::map<std::string, std::string>& headers) {
+std::pair<HttpResult::ptr, WSConnection::ptr> WSConnection::Create(
+    Uri::ptr uri, uint64_t timeout_ms, const std::map<std::string, std::string>& headers) {
     Address::ptr addr = uri->createAddress();
     if (!addr) {
-        return std::make_pair(std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_HOST, nullptr,
-                                                           "invalid host: " + uri->getHost()),
-                              nullptr);
+        return std::make_pair(
+            std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_HOST, nullptr,
+                                         "invalid host: " + uri->getHost()),
+            nullptr);
     }
     Socket::ptr sock = Socket::CreateTCP(addr);
     if (!sock) {
         return std::make_pair(
             std::make_shared<HttpResult>((int)HttpResult::Error::CREATE_SOCKET_ERROR, nullptr,
-                                         "create socket fail: " + addr->toString() + " errno=" + std::to_string(errno) +
+                                         "create socket fail: " + addr->toString() +
+                                             " errno=" + std::to_string(errno) +
                                              " errstr=" + std::string(strerror(errno))),
             nullptr);
     }
     if (!sock->connect(addr)) {
-        return std::make_pair(std::make_shared<HttpResult>((int)HttpResult::Error::CONNECT_FAIL, nullptr,
-                                                           "connect fail: " + addr->toString()),
-                              nullptr);
+        return std::make_pair(
+            std::make_shared<HttpResult>((int)HttpResult::Error::CONNECT_FAIL, nullptr,
+                                         "connect fail: " + addr->toString()),
+            nullptr);
     }
     sock->setRecvTimeout(timeout_ms);
     WSConnection::ptr conn = std::make_shared<WSConnection>(sock);
@@ -68,29 +73,34 @@ std::pair<HttpResult::ptr, WSConnection::ptr> WSConnection::Create(Uri::ptr uri,
 
     int rt = conn->sendRequest(req);
     if (rt == 0) {
-        return std::make_pair(std::make_shared<HttpResult>((int)HttpResult::Error::SEND_CLOSE_BY_PEER, nullptr,
-                                                           "send request closed by peer: " + addr->toString()),
-                              nullptr);
+        return std::make_pair(
+            std::make_shared<HttpResult>((int)HttpResult::Error::SEND_CLOSE_BY_PEER, nullptr,
+                                         "send request closed by peer: " + addr->toString()),
+            nullptr);
     }
     if (rt < 0) {
-        return std::make_pair(std::make_shared<HttpResult>((int)HttpResult::Error::SEND_SOCKET_ERROR, nullptr,
-                                                           "send request socket error errno=" + std::to_string(errno) +
-                                                               " errstr=" + std::string(strerror(errno))),
+        return std::make_pair(std::make_shared<HttpResult>(
+                                  (int)HttpResult::Error::SEND_SOCKET_ERROR, nullptr,
+                                  "send request socket error errno=" + std::to_string(errno) +
+                                      " errstr=" + std::string(strerror(errno))),
                               nullptr);
     }
     auto rsp = conn->recvResponse();
     if (!rsp) {
-        return std::make_pair(std::make_shared<HttpResult>((int)HttpResult::Error::TIMEOUT, nullptr,
-                                                           "recv response timeout: " + addr->toString() +
-                                                               " timeout_ms:" + std::to_string(timeout_ms)),
-                              nullptr);
+        return std::make_pair(
+            std::make_shared<HttpResult>((int)HttpResult::Error::TIMEOUT, nullptr,
+                                         "recv response timeout: " + addr->toString() +
+                                             " timeout_ms:" + std::to_string(timeout_ms)),
+            nullptr);
     }
 
     if (rsp->getStatus() != HttpStatus::SWITCHING_PROTOCOLS) {
-        return std::make_pair(std::make_shared<HttpResult>(50, rsp, "not websocket server " + addr->toString()),
-                              nullptr);
+        return std::make_pair(
+            std::make_shared<HttpResult>(50, rsp, "not websocket server " + addr->toString()),
+            nullptr);
     }
-    return std::make_pair(std::make_shared<HttpResult>((int)HttpResult::Error::OK, rsp, "ok"), conn);
+    return std::make_pair(std::make_shared<HttpResult>((int)HttpResult::Error::OK, rsp, "ok"),
+                          conn);
 }
 
 WSFrameMessage::ptr WSConnection::recvMessage() {

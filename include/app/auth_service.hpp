@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string>
 
-#include "http_session.hpp"
+#include "http/http_session.hpp"
 #include "result.hpp"
 
 namespace CIM::app {

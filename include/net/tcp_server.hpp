@@ -21,9 +21,9 @@
 #include <memory>
 
 #include "address.hpp"
-#include "config.hpp"
-#include "iomanager.hpp"
-#include "noncopyable.hpp"
+#include "config/config.hpp"
+#include "io/iomanager.hpp"
+#include "base/noncopyable.hpp"
 #include "socket.hpp"
 
 namespace CIM {
@@ -60,10 +60,11 @@ struct TcpServerConf {
          * @return true表示相等
          */
     bool operator==(const TcpServerConf& oth) const {
-        return address == oth.address && keepalive == oth.keepalive && timeout == oth.timeout && name == oth.name &&
-               ssl == oth.ssl && cert_file == oth.cert_file && key_file == oth.key_file &&
-               accept_worker == oth.accept_worker && io_worker == oth.io_worker &&
-               process_worker == oth.process_worker && args == oth.args && id == oth.id && type == oth.type;
+        return address == oth.address && keepalive == oth.keepalive && timeout == oth.timeout &&
+               name == oth.name && ssl == oth.ssl && cert_file == oth.cert_file &&
+               key_file == oth.key_file && accept_worker == oth.accept_worker &&
+               io_worker == oth.io_worker && process_worker == oth.process_worker &&
+               args == oth.args && id == oth.id && type == oth.type;
     }
 };
 
@@ -84,7 +85,8 @@ class LexicalCast<std::string, TcpServerConf> {
         conf.accept_worker = node["accept_worker"].as<std::string>();
         conf.io_worker = node["io_worker"].as<std::string>();
         conf.process_worker = node["process_worker"].as<std::string>();
-        conf.args = LexicalCast<std::string, std::map<std::string, std::string>>()(node["args"].as<std::string>(""));
+        conf.args = LexicalCast<std::string, std::map<std::string, std::string>>()(
+            node["args"].as<std::string>(""));
         if (node["address"].IsDefined()) {
             for (size_t i = 0; i < node["address"].size(); ++i) {
                 conf.address.push_back(node["address"][i].as<std::string>());
@@ -110,7 +112,8 @@ class LexicalCast<TcpServerConf, std::string> {
         node["accept_worker"] = conf.accept_worker;
         node["io_worker"] = conf.io_worker;
         node["process_worker"] = conf.process_worker;
-        node["args"] = YAML::Load(LexicalCast<std::map<std::string, std::string>, std::string>()(conf.args));
+        node["args"] =
+            YAML::Load(LexicalCast<std::map<std::string, std::string>, std::string>()(conf.args));
         for (auto& i : conf.address) {
             node["address"].push_back(i);
         }
@@ -171,7 +174,8 @@ class TcpServer : public std::enable_shared_from_this<TcpServer>, Noncopyable {
          * @param[in] ssl 是否启用SSL
          * @return 是否绑定成功
          */
-    virtual bool bind(const std::vector<Address::ptr>& addrs, std::vector<Address::ptr>& fails, bool ssl = false);
+    virtual bool bind(const std::vector<Address::ptr>& addrs, std::vector<Address::ptr>& fails,
+                      bool ssl = false);
 
     /**
          * @brief 加载SSL证书

@@ -1,4 +1,4 @@
-#include "uri.hpp"
+#include "http/uri.hpp"
 #include <sstream>
 
 namespace CIM {

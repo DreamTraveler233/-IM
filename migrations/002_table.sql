@@ -1,3 +1,9 @@
+-- 创建数据库 im_db
+CREATE DATABASE IF NOT EXISTS im_db
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+USE im_db;
+
 -- 用户主档
 CREATE TABLE IF NOT EXISTS `im_user` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '用户ID（由数据库自增）',
@@ -20,6 +26,51 @@ CREATE TABLE IF NOT EXISTS `im_user` (
   UNIQUE KEY `uk_email` (`email`),
   KEY `idx_nickname` (`nickname`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户主档';
+
+-- 本地账号密码
+CREATE TABLE IF NOT EXISTS `im_user_auth` (
+  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID（im_user.id）',
+  `password_hash` VARCHAR(255) NOT NULL COMMENT '密码哈希（bcrypt/argon2等）',
+  `password_algo` VARCHAR(255) NOT NULL DEFAULT 'PBKDF2-HMAC-SHA256' COMMENT '哈希算法（bcrypt/argon2等）',
+  `password_version` SMALLINT NOT NULL DEFAULT 1 COMMENT '密码版本（升级算法时便于区分）',
+  `last_reset_at` DATETIME NULL COMMENT '最近重置时间（找回/修改）',
+  `created_at` DATETIME NOT NULL COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL COMMENT '更新时间',
+  PRIMARY KEY (`user_id`),
+  CONSTRAINT `fk_auth_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户本地认证信息（密码等）';
+
+-- 用户个性化设置（与前端类型对齐）
+CREATE TABLE IF NOT EXISTS `im_user_setting` (
+  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID（im_user.id）',
+  `theme_mode` VARCHAR(16) NOT NULL DEFAULT 'auto' COMMENT '主题模式：light/dark/auto',
+  `theme_bag_img` VARCHAR(255) NOT NULL DEFAULT '' COMMENT '聊天背景图片URL',
+  `theme_color` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '主题主色调（#RRGGBB）',
+  `notify_cue_tone` VARCHAR(16) NOT NULL DEFAULT "N" COMMENT '通知提示音开关：Y是 N否',
+  `keyboard_event_notify` VARCHAR(16) NOT NULL DEFAULT "N" COMMENT '键盘事件通知：Y是 N否',
+  `created_at` DATETIME NOT NULL COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL COMMENT '更新时间',
+  PRIMARY KEY (`user_id`),
+  CONSTRAINT `fk_setting_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户个性化设置';
+
+-- 登录日志
+CREATE TABLE IF NOT EXISTS `im_auth_login_log` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` BIGINT UNSIGNED NULL COMMENT '用户ID（登录前失败场景可能为空）',
+  `mobile` VARCHAR(20) NULL COMMENT '尝试登录的手机号（便于失败审计）',
+  `platform` VARCHAR(32) NOT NULL COMMENT '登录平台（来自请求）',
+  `ip` VARCHAR(45) NOT NULL COMMENT '登录IP（IPv4/IPv6）',
+  `address` VARCHAR(128) NULL COMMENT 'IP归属地（解析后）',
+  `user_agent` VARCHAR(255) NULL COMMENT 'UA/设备指纹',
+  `success` TINYINT NOT NULL DEFAULT 0 COMMENT '是否成功：1=成功 0=失败',
+  `reason` VARCHAR(128) NULL COMMENT '失败原因（密码错误/验证码错误/账号禁用等）',
+  `created_at` DATETIME NOT NULL COMMENT '记录时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_time` (`user_id`,`created_at`),
+  KEY `idx_mobile_time` (`mobile`,`created_at`),
+  CONSTRAINT `fk_loginlog_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='认证登录日志';
 
 -- 短信验证码记录
 CREATE TABLE IF NOT EXISTS `im_sms_verify_code` (
@@ -57,80 +108,7 @@ CREATE TABLE IF NOT EXISTS `im_email_verify_code` (
   KEY `idx_sent_at` (`sent_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='邮箱验证码记录';
 
--- OAuth state 与防重放（授权中间态，独立）
-CREATE TABLE IF NOT EXISTS `im_oauth_state` (
-  `state` VARCHAR(64) NOT NULL COMMENT 'OAuth state（随机串，作为主键）',
-  `provider_type` VARCHAR(32) NOT NULL COMMENT '提供方类型',
-  `redirect_uri` VARCHAR(255) NULL COMMENT '回跳地址（按需）',
-  `created_at` DATETIME NOT NULL COMMENT '创建时间',
-  `expire_at` DATETIME NOT NULL COMMENT '过期时间（短期）',
-  `used_at` DATETIME NULL COMMENT '使用时间（回调后置位）',
-  PRIMARY KEY (`state`),
-  KEY `idx_provider_expire` (`provider_type`,`expire_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='OAuth state 暂存（防重放/CSRF）';
-
--- 未绑定账号的中间票据（bind_token，独立）
-CREATE TABLE IF NOT EXISTS `im_oauth_bind_token` (
-  `bind_token` VARCHAR(64) NOT NULL COMMENT '绑定票据（返回给前端）',
-  `provider_type` VARCHAR(32) NOT NULL COMMENT '提供方类型',
-  `open_id` VARCHAR(128) NOT NULL COMMENT '第三方 open_id',
-  `union_id` VARCHAR(128) NULL COMMENT '第三方 union_id',
-  `profile_snapshot` JSON NULL COMMENT '三方用户信息快照（昵称/头像等）',
-  `created_at` DATETIME NOT NULL COMMENT '创建时间',
-  `expire_at` DATETIME NOT NULL COMMENT '过期时间（短期）',
-  `used` TINYINT NOT NULL DEFAULT 0 COMMENT '是否已使用：0=否 1=是',
-  `used_at` DATETIME NULL COMMENT '使用时间（绑定成功后置位）',
-  PRIMARY KEY (`bind_token`),
-  KEY `idx_provider_open` (`provider_type`,`open_id`),
-  KEY `idx_expire` (`expire_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='第三方绑定中间票据（bind_token）';
-
--- 本地账号密码（依赖 im_user）
-CREATE TABLE IF NOT EXISTS `im_user_auth` (
-  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID（im_user.id）',
-  `password_hash` VARCHAR(255) NOT NULL COMMENT '密码哈希（bcrypt/argon2等）',
-  `password_algo` VARCHAR(255) NOT NULL DEFAULT 'PBKDF2-HMAC-SHA256' COMMENT '哈希算法（bcrypt/argon2等）',
-  `password_version` SMALLINT NOT NULL DEFAULT 1 COMMENT '密码版本（升级算法时便于区分）',
-  `last_reset_at` DATETIME NULL COMMENT '最近重置时间（找回/修改）',
-  `created_at` DATETIME NOT NULL COMMENT '创建时间',
-  `updated_at` DATETIME NOT NULL COMMENT '更新时间',
-  PRIMARY KEY (`user_id`),
-  CONSTRAINT `fk_auth_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户本地认证信息（密码等）';
-
--- 用户个性化设置（与前端类型对齐）
-CREATE TABLE IF NOT EXISTS `im_user_setting` (
-  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID（im_user.id）',
-  `theme_mode` VARCHAR(16) NOT NULL DEFAULT 'auto' COMMENT '主题模式：light/dark/auto',
-  `theme_bag_img` VARCHAR(255) NOT NULL DEFAULT '' COMMENT '聊天背景图片URL',
-  `theme_color` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '主题主色调（#RRGGBB）',
-  `notify_cue_tone` VARCHAR(16) NOT NULL DEFAULT "N" COMMENT '通知提示音开关：Y是 N否',
-  `keyboard_event_notify` VARCHAR(16) NOT NULL DEFAULT "N" COMMENT '键盘事件通知：Y是 N否',
-  `created_at` DATETIME NOT NULL COMMENT '创建时间',
-  `updated_at` DATETIME NOT NULL COMMENT '更新时间',
-  PRIMARY KEY (`user_id`),
-  CONSTRAINT `fk_setting_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户个性化设置';
-
--- 登录日志（依赖 im_user，可为空）
-CREATE TABLE IF NOT EXISTS `im_auth_login_log` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `user_id` BIGINT UNSIGNED NULL COMMENT '用户ID（登录前失败场景可能为空）',
-  `mobile` VARCHAR(20) NULL COMMENT '尝试登录的手机号（便于失败审计）',
-  `platform` VARCHAR(32) NOT NULL COMMENT '登录平台（来自请求）',
-  `ip` VARCHAR(45) NOT NULL COMMENT '登录IP（IPv4/IPv6）',
-  `address` VARCHAR(128) NULL COMMENT 'IP归属地（解析后）',
-  `user_agent` VARCHAR(255) NULL COMMENT 'UA/设备指纹',
-  `success` TINYINT NOT NULL DEFAULT 0 COMMENT '是否成功：1=成功 0=失败',
-  `reason` VARCHAR(128) NULL COMMENT '失败原因（密码错误/验证码错误/账号禁用等）',
-  `created_at` DATETIME NOT NULL COMMENT '记录时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_user_time` (`user_id`,`created_at`),
-  KEY `idx_mobile_time` (`mobile`,`created_at`),
-  CONSTRAINT `fk_loginlog_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='认证登录日志';
-
--- 会话/令牌管理（依赖 im_user）
+-- 会话/令牌管理
 CREATE TABLE IF NOT EXISTS `im_auth_session` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID（im_user.id）',
@@ -154,7 +132,7 @@ CREATE TABLE IF NOT EXISTS `im_auth_session` (
   CONSTRAINT `fk_auth_session_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户活跃会话/令牌管理';
 
--- 第三方登录绑定（依赖 im_user）
+-- 第三方登录绑定
 CREATE TABLE IF NOT EXISTS `im_user_oauth` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID（im_user.id）',
@@ -164,7 +142,7 @@ CREATE TABLE IF NOT EXISTS `im_user_oauth` (
   `nickname` VARCHAR(64) NULL COMMENT '第三方昵称快照',
   `avatar` VARCHAR(255) NULL COMMENT '第三方头像快照',
   `access_token` VARCHAR(255) NULL COMMENT '第三方 access_token（可加密存）',
-  `refresh_token` VARCHAR(255) NULL COMMENT '刷新令牌哈希（如使用刷新流）',
+  `refresh_token` VARCHAR(255) NULL COMMENT '第三方 refresh_token（可加密存）',
   `expires_at` DATETIME NULL COMMENT '第三方 token 过期时间',
   `last_login_at` DATETIME NULL COMMENT '最近一次三方登录时间',
   `created_at` DATETIME NOT NULL COMMENT '绑定时间',
@@ -176,7 +154,35 @@ CREATE TABLE IF NOT EXISTS `im_user_oauth` (
   CONSTRAINT `fk_oauth_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户第三方账号绑定';
 
--- 联系人分组（依赖 im_user）
+-- OAuth state 与防重放
+CREATE TABLE IF NOT EXISTS `im_oauth_state` (
+  `state` VARCHAR(64) NOT NULL COMMENT 'OAuth state（随机串，作为主键）',
+  `provider_type` VARCHAR(32) NOT NULL COMMENT '提供方类型',
+  `redirect_uri` VARCHAR(255) NULL COMMENT '回跳地址（按需）',
+  `created_at` DATETIME NOT NULL COMMENT '创建时间',
+  `expire_at` DATETIME NOT NULL COMMENT '过期时间（短期）',
+  `used_at` DATETIME NULL COMMENT '使用时间（回调后置位）',
+  PRIMARY KEY (`state`),
+  KEY `idx_provider_expire` (`provider_type`,`expire_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='OAuth state 暂存（防重放/CSRF）';
+
+-- 未绑定账号的中间票据（bind_token）
+CREATE TABLE IF NOT EXISTS `im_oauth_bind_token` (
+  `bind_token` VARCHAR(64) NOT NULL COMMENT '绑定票据（返回给前端）',
+  `provider_type` VARCHAR(32) NOT NULL COMMENT '提供方类型',
+  `open_id` VARCHAR(128) NOT NULL COMMENT '第三方 open_id',
+  `union_id` VARCHAR(128) NULL COMMENT '第三方 union_id',
+  `profile_snapshot` JSON NULL COMMENT '三方用户信息快照（昵称/头像等）',
+  `created_at` DATETIME NOT NULL COMMENT '创建时间',
+  `expire_at` DATETIME NOT NULL COMMENT '过期时间（短期）',
+  `used` TINYINT NOT NULL DEFAULT 0 COMMENT '是否已使用：0=否 1=是',
+  `used_at` DATETIME NULL COMMENT '使用时间（绑定成功后置位）',
+  PRIMARY KEY (`bind_token`),
+  KEY `idx_provider_open` (`provider_type`,`open_id`),
+  KEY `idx_expire` (`expire_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='第三方绑定中间票据（bind_token）';
+
+-- 联系人分组（每个用户自定义）
 CREATE TABLE IF NOT EXISTS `im_contact_group` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '分组所属用户ID',
@@ -191,7 +197,7 @@ CREATE TABLE IF NOT EXISTS `im_contact_group` (
   CONSTRAINT `fk_cg_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='联系人分组（用户自定义）';
 
--- 联系人关系（定向：owner -> friend，存放个人视角信息）
+-- 联系人关系（定向：owner -> friend）
 CREATE TABLE IF NOT EXISTS `im_contact` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `owner_user_id` BIGINT UNSIGNED NOT NULL COMMENT '联系人拥有者（发起展示视角的用户）',
@@ -226,7 +232,6 @@ CREATE TABLE IF NOT EXISTS `im_contact_apply` (
   `created_at` DATETIME NOT NULL COMMENT '申请时间',
   `updated_at` DATETIME NOT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`),
-  -- 保证“待处理”的唯一性，避免同一对重复提交（历史同意/拒绝记录不受影响）
   KEY `idx_target_status_read` (`target_user_id`,`status`),
   KEY `idx_apply_time` (`apply_user_id`,`created_at`),
   KEY `idx_target_time` (`target_user_id`,`created_at`),
@@ -235,7 +240,7 @@ CREATE TABLE IF NOT EXISTS `im_contact_apply` (
   CONSTRAINT `fk_capply_handler_user` FOREIGN KEY (`handler_user_id`) REFERENCES `im_user` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='联系人申请记录（申请/同意/拒绝/未读）';
 
--- 群基础信息（依赖 im_user）
+-- 群基础信息
 CREATE TABLE IF NOT EXISTS `im_group` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '群ID（由数据库自增）',
   `group_name` VARCHAR(64) NOT NULL COMMENT '群名称',
@@ -260,7 +265,7 @@ CREATE TABLE IF NOT EXISTS `im_group` (
   CONSTRAINT `fk_group_creator` FOREIGN KEY (`creator_id`) REFERENCES `im_user` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群基础信息（详情/公开/禁言/成员数）';
 
--- 群成员（依赖 im_group, im_user）
+-- 群成员
 CREATE TABLE IF NOT EXISTS `im_group_member` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `group_id` BIGINT UNSIGNED NOT NULL COMMENT '群ID（im_group.id）',
@@ -280,7 +285,7 @@ CREATE TABLE IF NOT EXISTS `im_group_member` (
   CONSTRAINT `fk_member_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群成员（角色/群名片/成员禁言）';
 
--- 群公告（依赖 im_group, im_user）
+-- 群公告
 CREATE TABLE IF NOT EXISTS `im_group_notice` (
   `group_id` BIGINT UNSIGNED NOT NULL COMMENT '群ID（im_group.id）',
   `content` MEDIUMTEXT NOT NULL COMMENT '公告内容（富文本/纯文本）',
@@ -292,7 +297,7 @@ CREATE TABLE IF NOT EXISTS `im_group_notice` (
   CONSTRAINT `fk_notice_user` FOREIGN KEY (`modify_user_id`) REFERENCES `im_user` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群公告（单条当前生效）';
 
--- 群申请（依赖 im_group, im_user）
+-- 群申请
 CREATE TABLE IF NOT EXISTS `im_group_apply` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `group_id` BIGINT UNSIGNED NOT NULL COMMENT '群ID（im_group.id）',
@@ -312,7 +317,7 @@ CREATE TABLE IF NOT EXISTS `im_group_apply` (
   CONSTRAINT `fk_gapply_handler` FOREIGN KEY (`handler_user_id`) REFERENCES `im_user` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群申请记录（待处理/同意/拒绝/未读）';
 
--- 群邀请（依赖 im_group, im_user）
+-- 群邀请审计
 CREATE TABLE IF NOT EXISTS `im_group_invite` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `group_id` BIGINT UNSIGNED NOT NULL COMMENT '群ID',
@@ -329,7 +334,7 @@ CREATE TABLE IF NOT EXISTS `im_group_invite` (
   CONSTRAINT `fk_ginvite_invitee` FOREIGN KEY (`invitee_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群邀请记录（可选：便于审计/风控）';
 
--- 群投票主表（依赖 im_group, im_user）
+-- 群投票主表
 CREATE TABLE IF NOT EXISTS `im_group_vote` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '投票ID（由数据库自增）',
   `group_id` BIGINT UNSIGNED NOT NULL COMMENT '群ID',
@@ -347,7 +352,6 @@ CREATE TABLE IF NOT EXISTS `im_group_vote` (
   CONSTRAINT `fk_gvote_creator` FOREIGN KEY (`created_by`) REFERENCES `im_user` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群投票（标题/模式/匿名/状态）';
 
--- 群投票选项（依赖 im_group_vote）
 CREATE TABLE IF NOT EXISTS `im_group_vote_option` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `vote_id` BIGINT UNSIGNED NOT NULL COMMENT '投票ID（im_group_vote.id）',
@@ -360,7 +364,6 @@ CREATE TABLE IF NOT EXISTS `im_group_vote_option` (
   CONSTRAINT `fk_gvoteopt_vote` FOREIGN KEY (`vote_id`) REFERENCES `im_group_vote` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群投票选项';
 
--- 群投票回答（依赖 im_group_vote, im_user）
 CREATE TABLE IF NOT EXISTS `im_group_vote_answer` (
   `vote_id` BIGINT UNSIGNED NOT NULL COMMENT '投票ID（im_group_vote.id）',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '回答者用户ID',
@@ -372,7 +375,6 @@ CREATE TABLE IF NOT EXISTS `im_group_vote_answer` (
   CONSTRAINT `fk_gvoteans_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群投票回答（多选多行）';
 
--- 会话主实体：先创建 im_talk（依赖 im_user, im_group）
 CREATE TABLE IF NOT EXISTS `im_talk` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '会话ID（由数据库自增）',
   `talk_mode` TINYINT NOT NULL COMMENT '会话类型: 1=单聊 2=群聊（对应 TalkModeEnum）',
@@ -390,19 +392,18 @@ CREATE TABLE IF NOT EXISTS `im_talk` (
   CONSTRAINT `fk_talk_group` FOREIGN KEY (`group_id`) REFERENCES `im_group` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话主实体（单聊/群聊唯一）';
 
--- 消息主表（依赖 im_talk, im_user, im_group）
 CREATE TABLE IF NOT EXISTS `im_message` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '消息ID（由数据库自增，全局唯一）',
+  `id` CHAR(32) NOT NULL COMMENT '消息ID（UUID/HEX32，无自增）',
   `talk_id` BIGINT UNSIGNED NOT NULL COMMENT '所属会话ID（im_talk.id）',
   `sequence` BIGINT NOT NULL COMMENT '会话内消息序号（严格递增，用于排序/分页）',
   `talk_mode` TINYINT NOT NULL COMMENT '会话类型: 1=单聊 2=群聊',
-  `msg_type` SMALLINT NOT NULL COMMENT '消息类型（见 src/constant/chat.ts：文本/图片/语音/视频/文件/位置/名片/转发/登录/投票/混合/公告/系统）',
+  `msg_type` SMALLINT NOT NULL COMMENT '消息类型（文本/图片/音视频/文件/位置/名片/转发/登录/投票/混合/公告/系统）',
   `sender_id` BIGINT UNSIGNED NOT NULL COMMENT '发送者用户ID',
   `receiver_id` BIGINT UNSIGNED NULL COMMENT '单聊: 对端用户ID；群聊: NULL',
   `group_id` BIGINT UNSIGNED NULL COMMENT '群聊: 群ID；单聊: NULL',
   `content_text` MEDIUMTEXT NULL COMMENT '文本/系统文本内容；非文本消息留空（由 extra 承载）',
-  `extra` JSON NULL COMMENT '扩展内容：各类型专属字段（图片/文件/音频/视频/代码/投票/混合/登录/公告等）',
-  `quote_msg_id` BIGINT UNSIGNED NULL COMMENT '被引用消息ID（用于回复/引用）',
+  `extra` JSON NULL COMMENT '扩展内容：各类型专属字段',
+  `quote_msg_id` CHAR(32) NULL COMMENT '被引用消息ID（用于回复/引用）',
   `is_revoked` TINYINT NOT NULL DEFAULT 2 COMMENT '撤回状态: 1=已撤回 2=正常',
   `revoke_by` BIGINT UNSIGNED NULL COMMENT '撤回操作人用户ID（可为空）',
   `revoke_time` DATETIME NULL COMMENT '撤回时间',
@@ -420,55 +421,8 @@ CREATE TABLE IF NOT EXISTS `im_message` (
   CONSTRAINT `fk_msg_receiver` FOREIGN KEY (`receiver_id`) REFERENCES `im_user` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_msg_group` FOREIGN KEY (`group_id`) REFERENCES `im_group` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_msg_quote` FOREIGN KEY (`quote_msg_id`) REFERENCES `im_message` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息主表（按 talk_id+sequence 排序）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息主表（字符串ID）';
 
--- 消息转发映射（依赖 im_message, im_talk）
-CREATE TABLE IF NOT EXISTS `im_message_forward_map` (
-  `forward_msg_id` BIGINT UNSIGNED NOT NULL COMMENT '转发生成的新消息ID（im_message.id）',
-  `src_msg_id` BIGINT UNSIGNED NOT NULL COMMENT '被转发的原消息ID（im_message.id）',
-  `src_talk_id` BIGINT UNSIGNED NOT NULL COMMENT '原消息所属会话ID（im_talk.id）',
-  `src_sender_id` BIGINT UNSIGNED NOT NULL COMMENT '原消息发送者用户ID',
-  `created_at` DATETIME NOT NULL COMMENT '创建时间',
-  PRIMARY KEY (`forward_msg_id`,`src_msg_id`),
-  KEY `idx_src` (`src_msg_id`),
-  CONSTRAINT `fk_forward_msg` FOREIGN KEY (`forward_msg_id`) REFERENCES `im_message` (`id`) ON UPDATE CASCADE,
-  CONSTRAINT `fk_forward_src_msg` FOREIGN KEY (`src_msg_id`) REFERENCES `im_message` (`id`) ON UPDATE CASCADE,
-  CONSTRAINT `fk_forward_src_talk` FOREIGN KEY (`src_talk_id`) REFERENCES `im_talk` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息转发映射（新消息与原消息的对应关系）';
-
--- 消息已读（依赖 im_message, im_user）
-CREATE TABLE IF NOT EXISTS `im_message_read` (
-  `msg_id` BIGINT UNSIGNED NOT NULL COMMENT '消息ID（im_message.id）',
-  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '阅读用户ID',
-  `read_at` DATETIME NOT NULL COMMENT '阅读时间',
-  PRIMARY KEY (`msg_id`,`user_id`),
-  KEY `idx_user_time` (`user_id`,`read_at`),
-  CONSTRAINT `fk_read_msg` FOREIGN KEY (`msg_id`) REFERENCES `im_message` (`id`) ON UPDATE CASCADE,
-  CONSTRAINT `fk_read_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息已读表';
-
--- 用户删除消息（依赖 im_message, im_user）
-CREATE TABLE IF NOT EXISTS `im_message_user_delete` (
-  `msg_id` BIGINT UNSIGNED NOT NULL COMMENT '消息ID（im_message.id）',
-  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '删除动作的用户ID',
-  `deleted_at` DATETIME NOT NULL COMMENT '删除时间',
-  PRIMARY KEY (`msg_id`,`user_id`),
-  KEY `idx_user_deleted` (`user_id`,`deleted_at`),
-  CONSTRAINT `fk_delete_msg` FOREIGN KEY (`msg_id`) REFERENCES `im_message` (`id`) ON UPDATE CASCADE,
-  CONSTRAINT `fk_delete_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户侧消息删除记录（仅影响本人视图）';
-
--- @ 提及（依赖 im_message, im_user）
-CREATE TABLE IF NOT EXISTS `im_message_mention` (
-  `msg_id` BIGINT UNSIGNED NOT NULL COMMENT '消息ID（im_message.id）',
-  `mentioned_user_id` BIGINT UNSIGNED NOT NULL COMMENT '@到的用户ID',
-  PRIMARY KEY (`msg_id`,`mentioned_user_id`),
-  KEY `idx_mentioned` (`mentioned_user_id`,`msg_id`),
-  CONSTRAINT `fk_mention_msg` FOREIGN KEY (`msg_id`) REFERENCES `im_message` (`id`) ON UPDATE CASCADE,
-  CONSTRAINT `fk_mention_user` FOREIGN KEY (`mentioned_user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息@提及映射';
-
--- 会话视图/设置（依赖 im_talk, im_user, im_message）
 CREATE TABLE IF NOT EXISTS `im_talk_session` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '会话归属用户ID（谁在看这个会话）',
@@ -479,8 +433,8 @@ CREATE TABLE IF NOT EXISTS `im_talk_session` (
   `is_top` TINYINT NOT NULL DEFAULT 2 COMMENT '置顶: 1=置顶 2=未置顶（前端最多18个）',
   `is_robot` TINYINT NOT NULL DEFAULT 2 COMMENT '是否机器人: 1=是 2=否',
   `unread_num` INT NOT NULL DEFAULT 0 COMMENT '未读消息数（本地缓存数，可通过 last_ack_seq 校准）',
-  `last_ack_seq` BIGINT NOT NULL DEFAULT 0 COMMENT '上次确认已读的消息序号（会话内 seq）',
-  `last_msg_id` BIGINT UNSIGNED NULL COMMENT '最后一条消息ID（im_message.id）',
+  `last_ack_seq` BIGINT NOT NULL DEFAULT 0 COMMENT '上次確認已读的消息序号（会话内 seq）',
+  `last_msg_id` CHAR(32) NULL COMMENT '最后一条消息ID（im_message.id，字符串）',
   `last_msg_type` SMALLINT NULL COMMENT '最后一条消息类型（对应 ChatMsgTypeXxx）',
   `last_msg_digest` VARCHAR(255) NULL COMMENT '最后一条消息预览文案（如[图片消息]、文本摘要）',
   `last_sender_id` BIGINT UNSIGNED NULL COMMENT '最后一条消息发送者ID',
@@ -502,7 +456,6 @@ CREATE TABLE IF NOT EXISTS `im_talk_session` (
   CONSTRAINT `fk_session_last_sender` FOREIGN KEY (`last_sender_id`) REFERENCES `im_user` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户-会话视图/设置（置顶/免打扰/未读/草稿/最后消息）';
 
--- 会话序列表（依赖 im_talk）
 CREATE TABLE IF NOT EXISTS `im_talk_sequence` (
   `talk_id` BIGINT UNSIGNED NOT NULL COMMENT 'im_talk.id',
   `last_seq` BIGINT NOT NULL DEFAULT 0 COMMENT '当前会话内最大序号',
@@ -512,7 +465,48 @@ CREATE TABLE IF NOT EXISTS `im_talk_sequence` (
   CONSTRAINT `fk_seq_talk` FOREIGN KEY (`talk_id`) REFERENCES `im_talk` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话序列（分配消息 sequence 用）';
 
--- 自定义表情（依赖 im_user）
+CREATE TABLE IF NOT EXISTS `im_message_forward_map` (
+  `forward_msg_id` CHAR(32) NOT NULL COMMENT '转发生成的新消息ID（im_message.id）',
+  `src_msg_id` CHAR(32) NOT NULL COMMENT '被转发的原消息ID（im_message.id）',
+  `src_talk_id` BIGINT UNSIGNED NOT NULL COMMENT '原消息所属会话ID（im_talk.id）',
+  `src_sender_id` BIGINT UNSIGNED NOT NULL COMMENT '原消息发送者用户ID',
+  `created_at` DATETIME NOT NULL COMMENT '创建时间',
+  PRIMARY KEY (`forward_msg_id`,`src_msg_id`),
+  KEY `idx_src` (`src_msg_id`),
+  CONSTRAINT `fk_forward_msg` FOREIGN KEY (`forward_msg_id`) REFERENCES `im_message` (`id`) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `fk_forward_src_msg` FOREIGN KEY (`src_msg_id`) REFERENCES `im_message` (`id`) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `fk_forward_src_talk` FOREIGN KEY (`src_talk_id`) REFERENCES `im_talk` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息转发映射（字符串ID）';
+
+CREATE TABLE IF NOT EXISTS `im_message_read` (
+  `msg_id` CHAR(32) NOT NULL COMMENT '消息ID（im_message.id）',
+  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '阅读用户ID',
+  `read_at` DATETIME NOT NULL COMMENT '阅读时间',
+  PRIMARY KEY (`msg_id`,`user_id`),
+  KEY `idx_user_time` (`user_id`,`read_at`),
+  CONSTRAINT `fk_read_msg` FOREIGN KEY (`msg_id`) REFERENCES `im_message` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_read_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息已读表（字符串ID）';
+
+CREATE TABLE IF NOT EXISTS `im_message_user_delete` (
+  `msg_id` CHAR(32) NOT NULL COMMENT '消息ID（im_message.id）',
+  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '删除动作的用户ID',
+  `deleted_at` DATETIME NOT NULL COMMENT '删除时间',
+  PRIMARY KEY (`msg_id`,`user_id`),
+  KEY `idx_user_deleted` (`user_id`,`deleted_at`),
+  CONSTRAINT `fk_delete_msg` FOREIGN KEY (`msg_id`) REFERENCES `im_message` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_delete_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户侧消息删除记录（字符串ID）';
+
+CREATE TABLE IF NOT EXISTS `im_message_mention` (
+  `msg_id` CHAR(32) NOT NULL COMMENT '消息ID（im_message.id）',
+  `mentioned_user_id` BIGINT UNSIGNED NOT NULL COMMENT '@到的用户ID',
+  PRIMARY KEY (`msg_id`,`mentioned_user_id`),
+  KEY `idx_mentioned` (`mentioned_user_id`,`msg_id`),
+  CONSTRAINT `fk_mention_msg` FOREIGN KEY (`msg_id`) REFERENCES `im_message` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_mention_user` FOREIGN KEY (`mentioned_user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息@提及映射（字符串ID）';
+
 CREATE TABLE IF NOT EXISTS `im_emoticon` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '表情ID',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '归属用户ID',
@@ -530,7 +524,6 @@ CREATE TABLE IF NOT EXISTS `im_emoticon` (
   CONSTRAINT `fk_emoticon_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户自定义表情';
 
--- 文章分类（依赖 im_user）
 CREATE TABLE IF NOT EXISTS `im_article_classify` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '分类ID',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '归属用户ID',
@@ -546,7 +539,6 @@ CREATE TABLE IF NOT EXISTS `im_article_classify` (
   CONSTRAINT `fk_aclass_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文章分类';
 
--- 文章标签（依赖 im_user）
 CREATE TABLE IF NOT EXISTS `im_article_tag` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '标签ID',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '标签归属用户ID（个人标签域）',
@@ -558,7 +550,6 @@ CREATE TABLE IF NOT EXISTS `im_article_tag` (
   CONSTRAINT `fk_atag_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文章标签维表（按用户隔离）';
 
--- 文章主表（依赖 im_user, im_article_classify）
 CREATE TABLE IF NOT EXISTS `im_article` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '文章ID（由数据库自增）',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '作者用户ID',
@@ -581,7 +572,6 @@ CREATE TABLE IF NOT EXISTS `im_article` (
   CONSTRAINT `fk_article_classify` FOREIGN KEY (`classify_id`) REFERENCES `im_article_classify` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文章主表';
 
--- 文章-标签关系（依赖 im_article, im_article_tag）
 CREATE TABLE IF NOT EXISTS `im_article_tag_map` (
   `article_id` BIGINT UNSIGNED NOT NULL COMMENT '文章ID',
   `tag_id` BIGINT UNSIGNED NOT NULL COMMENT '标签ID（im_article_tag.id）',
@@ -591,7 +581,6 @@ CREATE TABLE IF NOT EXISTS `im_article_tag_map` (
   CONSTRAINT `fk_atag_tag` FOREIGN KEY (`tag_id`) REFERENCES `im_article_tag` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文章与标签关系';
 
--- 文章收藏（依赖 im_article, im_user）
 CREATE TABLE IF NOT EXISTS `im_article_asterisk` (
   `article_id` BIGINT UNSIGNED NOT NULL COMMENT '文章ID',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '收藏用户ID',
@@ -602,7 +591,6 @@ CREATE TABLE IF NOT EXISTS `im_article_asterisk` (
   CONSTRAINT `fk_ast_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文章收藏关系';
 
--- 文章附件（依赖 im_article, im_user）
 CREATE TABLE IF NOT EXISTS `im_article_annex` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '附件ID',
   `article_id` BIGINT UNSIGNED NOT NULL COMMENT '文章ID（im_article.id）',
@@ -620,7 +608,6 @@ CREATE TABLE IF NOT EXISTS `im_article_annex` (
   CONSTRAINT `fk_aannex_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文章附件（软删除进入回收站）';
 
--- 组织部门（自引用 FK）
 CREATE TABLE IF NOT EXISTS `im_org_department` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '部门ID',
   `parent_id` BIGINT UNSIGNED NULL COMMENT '上级部门ID（NULL 为顶级）',
@@ -636,7 +623,6 @@ CREATE TABLE IF NOT EXISTS `im_org_department` (
   CONSTRAINT `fk_org_dept_parent` FOREIGN KEY (`parent_id`) REFERENCES `im_org_department` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='组织部门（树形结构）';
 
--- 职位字典（独立）
 CREATE TABLE IF NOT EXISTS `im_org_position` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '职位ID',
   `code` VARCHAR(64) NOT NULL COMMENT '职位编码（唯一）',
@@ -650,7 +636,6 @@ CREATE TABLE IF NOT EXISTS `im_org_position` (
   KEY `idx_sort` (`sort`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='职位字典';
 
--- 用户-部门归属（依赖 im_org_department, im_user）
 CREATE TABLE IF NOT EXISTS `im_org_user_department` (
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
   `dept_id` BIGINT UNSIGNED NOT NULL COMMENT '部门ID（im_org_department.id）',
@@ -662,7 +647,6 @@ CREATE TABLE IF NOT EXISTS `im_org_user_department` (
   CONSTRAINT `fk_ud_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户-部门归属';
 
--- 用户-职位映射（依赖 im_org_position, im_user）
 CREATE TABLE IF NOT EXISTS `im_org_user_position` (
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
   `position_id` BIGINT UNSIGNED NOT NULL COMMENT '职位ID（im_org_position.id）',
@@ -672,3 +656,5 @@ CREATE TABLE IF NOT EXISTS `im_org_user_position` (
   CONSTRAINT `fk_up_pos` FOREIGN KEY (`position_id`) REFERENCES `im_org_position` (`id`) ON UPDATE CASCADE,
   CONSTRAINT `fk_up_user` FOREIGN KEY (`user_id`) REFERENCES `im_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户-职位映射';
+
+-- End of merged tables

@@ -1,9 +1,9 @@
 #ifndef __CIM_ROCK_ROCK_STREAM_HPP__
 #define __CIM_ROCK_ROCK_STREAM_HPP__
 
-#include "async_socket_stream.hpp"
+#include "streams/async_socket_stream.hpp"
 #include "rock_protocol.hpp"
-#include "load_balance.hpp"
+#include "streams/load_balance.hpp"
 #include <boost/any.hpp>
 
 namespace CIM

@@ -3,7 +3,7 @@
 #include "dao/talk_dao.hpp"
 #include "dao/talk_session_dao.hpp"
 #include "dao/user_dao.hpp"
-#include "macro.hpp"
+#include "base/macro.hpp"
 
 namespace CIM::app {
 

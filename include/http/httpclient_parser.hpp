@@ -58,29 +58,28 @@
  * 该结构体用于存储HTTP客户端响应解析过程中的状态和数据，
  * 是基于Ragel状态机生成的C代码包装
  */
-typedef struct httpclient_parser
-{
-    int cs;             /// 当前状态机状态
-    size_t body_start;  /// HTTP消息体开始位置
-    int content_len;    /// 内容长度
-    int status;         /// HTTP状态码
-    int chunked;        /// 是否为分块传输编码
-    int chunks_done;    /// 分块是否完成
-    int close;          /// 连接是否关闭标记
-    size_t nread;       /// 已读取的字节数
-    size_t mark;        /// 标记位置，用于记录解析过程中的关键位置
-    size_t field_start; /// 当前HTTP头部字段开始位置
-    size_t field_len;   /// 当前HTTP头部字段长度
+typedef struct httpclient_parser {
+    int cs;              /// 当前状态机状态
+    size_t body_start;   /// HTTP消息体开始位置
+    int content_len;     /// 内容长度
+    int status;          /// HTTP状态码
+    int chunked;         /// 是否为分块传输编码
+    int chunks_done;     /// 分块是否完成
+    int close;           /// 连接是否关闭标记
+    size_t nread;        /// 已读取的字节数
+    size_t mark;         /// 标记位置，用于记录解析过程中的关键位置
+    size_t field_start;  /// 当前HTTP头部字段开始位置
+    size_t field_len;    /// 当前HTTP头部字段长度
 
-    void *data; /// 用户自定义数据指针，用于回调函数传递数据
+    void* data;  /// 用户自定义数据指针，用于回调函数传递数据
 
-    field_cb http_field;      /// HTTP头部字段回调函数指针
-    element_cb reason_phrase; /// 原因短语回调函数指针
-    element_cb status_code;   /// 状态码回调函数指针
-    element_cb chunk_size;    /// 分块大小回调函数指针
-    element_cb http_version;  /// HTTP版本回调函数指针
-    element_cb header_done;   /// HTTP头部解析完成回调函数指针
-    element_cb last_chunk;    /// 最后一个分块回调函数指针
+    field_cb http_field;       /// HTTP头部字段回调函数指针
+    element_cb reason_phrase;  /// 原因短语回调函数指针
+    element_cb status_code;    /// 状态码回调函数指针
+    element_cb chunk_size;     /// 分块大小回调函数指针
+    element_cb http_version;   /// HTTP版本回调函数指针
+    element_cb header_done;    /// HTTP头部解析完成回调函数指针
+    element_cb last_chunk;     /// 最后一个分块回调函数指针
 
 } httpclient_parser;
 
@@ -89,14 +88,14 @@ typedef struct httpclient_parser
  * @param[out] parser HTTP客户端解析器结构体指针
  * @return 初始化结果，成功返回0，失败返回非0值
  */
-int httpclient_parser_init(httpclient_parser *parser);
+int httpclient_parser_init(httpclient_parser* parser);
 
 /**
  * @brief 完成HTTP客户端解析
  * @param[in,out] parser HTTP客户端解析器结构体指针
  * @return 完成结果，成功返回0，失败返回非0值
  */
-int httpclient_parser_finish(httpclient_parser *parser);
+int httpclient_parser_finish(httpclient_parser* parser);
 
 /**
  * @brief 执行HTTP客户端解析
@@ -106,21 +105,21 @@ int httpclient_parser_finish(httpclient_parser *parser);
  * @param[in] off 解析起始偏移量
  * @return 解析结果，成功返回0，失败返回非0值
  */
-int httpclient_parser_execute(httpclient_parser *parser, const char *data, size_t len, size_t off);
+int httpclient_parser_execute(httpclient_parser* parser, const char* data, size_t len, size_t off);
 
 /**
  * @brief 检查解析过程中是否有错误
  * @param[in] parser HTTP客户端解析器结构体指针
  * @return 有错误返回非0值，无错误返回0
  */
-int httpclient_parser_has_error(httpclient_parser *parser);
+int httpclient_parser_has_error(httpclient_parser* parser);
 
 /**
  * @brief 检查解析是否已完成
  * @param[in] parser HTTP客户端解析器结构体指针
  * @return 已完成返回非0值，未完成返回0
  */
-int httpclient_parser_is_finished(httpclient_parser *parser);
+int httpclient_parser_is_finished(httpclient_parser* parser);
 
 /**
  * @brief 获取已读取的字节数

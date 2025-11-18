@@ -6,7 +6,7 @@ namespace CIM::dao {
 
 static constexpr const char* kDBName = "default";
 
-bool MessageMentionDao::AddMentions(const uint64_t msg_id,
+bool MessageMentionDao::AddMentions(const std::string& msg_id,
                                     const std::vector<uint64_t>& mentioned_user_ids,
                                     std::string* err) {
     auto db = CIM::MySQLMgr::GetInstance()->get(kDBName);
@@ -23,7 +23,7 @@ bool MessageMentionDao::AddMentions(const uint64_t msg_id,
         return false;
     }
     for (auto uid : mentioned_user_ids) {
-        stmt->bindUint64(1, msg_id);
+        stmt->bindString(1, msg_id);
         stmt->bindUint64(2, uid);
         if (stmt->execute() != 0) {
             if (err) *err = stmt->getErrStr();

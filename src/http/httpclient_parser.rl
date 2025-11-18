@@ -32,7 +32,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "httpclient_parser.hpp"
+#include "http/httpclient_parser.hpp"
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>

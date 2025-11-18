@@ -7,7 +7,7 @@
 #include "dao/contact_dao.hpp"
 #include "dao/user_dao.hpp"
 #include "db/mysql.hpp"
-#include "macro.hpp"
+#include "base/macro.hpp"
 
 namespace CIM::app {
 static auto g_logger = CIM_LOG_NAME("root");
@@ -263,14 +263,60 @@ VoidResult ContactService::EditContactRemark(const uint64_t user_id, const uint6
     VoidResult result;
     std::string err;
 
-    if (!CIM::dao::ContactDAO::EditRemark(user_id, contact_id, remark, &err)) {
+    // 1. 启动事务
+    auto trans = CIM::MySQLMgr::GetInstance()->openTransaction(kDBName, false);
+    if (!trans) {
+        CIM_LOG_ERROR(g_logger) << "EditContactRemark openTransaction failed, user_id=" << user_id
+                                << ", contact_id=" << contact_id;
+        result.code = 500;
+        result.err = "修改联系人备注失败";
+        return result;
+    }
+
+    // 2. 获取事务绑定的数据库连接
+    auto db = trans->getMySQL();
+    if (!db) {
+        CIM_LOG_ERROR(g_logger) << "EditContactRemark get transaction connection failed, user_id="
+                                << user_id << ", contact_id=" << contact_id;
+        result.code = 500;
+        result.err = "修改联系人备注失败";
+        return result;
+    }
+
+    // 3. 执行修改联系人备注操作，使用事务绑定的数据库连接
+    if (!CIM::dao::ContactDAO::EditRemark(db, user_id, contact_id, remark, &err)) {
         if (!err.empty()) {
+            trans->rollback();  // 回滚事务
             CIM_LOG_ERROR(g_logger)
                 << "EditContactRemark failed, user_id=" << user_id << ", err=" << err;
             result.code = 500;
             result.err = "修改联系人备注失败";
             return result;
         }
+    }
+
+    // 4. 修改会话表备注
+    if (!CIM::dao::TalkSessionDAO::EditRemarkWithConn(db, user_id, contact_id, remark, &err)) {
+        if (!err.empty()) {
+            trans->rollback();  // 回滚事务
+            CIM_LOG_ERROR(g_logger)
+                << "EditContactRemark EditConversationRemark failed, user_id=" << user_id
+                << ", contact_id=" << contact_id << ", err=" << err;
+            result.code = 500;
+            result.err = "修改联系人备注失败";
+            return result;
+        }
+    }
+
+    // 5. 提交事务
+    if (!trans->commit()) {
+        const auto commit_err = db->getErrStr();
+        trans->rollback();  // 回滚事务
+        CIM_LOG_ERROR(g_logger) << "EditContactRemark commit transaction failed, user_id="
+                                << user_id << ", contact_id=" << contact_id;
+        result.code = 500;
+        result.err = "修改联系人备注失败";
+        return result;
     }
 
     result.ok = true;

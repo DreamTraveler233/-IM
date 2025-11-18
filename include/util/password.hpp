@@ -23,7 +23,6 @@ class Password {
      * @return 匹配成功返回true，否则返回false
      */
     static bool Verify(const std::string& password, const std::string& stored_hash);
-
 };
 
 }  // namespace CIM::util

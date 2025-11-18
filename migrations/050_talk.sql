@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS `im_talk_session` (
   `is_robot` TINYINT NOT NULL DEFAULT 2 COMMENT '是否机器人: 1=是 2=否',
   `unread_num` INT NOT NULL DEFAULT 0 COMMENT '未读消息数（本地缓存数，可通过 last_ack_seq 校准）',
   `last_ack_seq` BIGINT NOT NULL DEFAULT 0 COMMENT '上次確認已读的消息序号（会话内 seq）',
-  `last_msg_id` BIGINT UNSIGNED NULL COMMENT '最后一条消息ID（im_message.id）',
+  `last_msg_id` CHAR(32) NULL COMMENT '最后一条消息ID（im_message.id，字符串）',
   `last_msg_type` SMALLINT NULL COMMENT '最后一条消息类型（对应 ChatMsgTypeXxx）',
   `last_msg_digest` VARCHAR(255) NULL COMMENT '最后一条消息预览文案（如[图片消息]、文本摘要）',
   `last_sender_id` BIGINT UNSIGNED NULL COMMENT '最后一条消息发送者ID',

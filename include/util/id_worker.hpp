@@ -1,9 +1,9 @@
 #ifndef __CIM_UTIL_ID_WORKER_HPP__
 #define __CIM_UTIL_ID_WORKER_HPP__
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
-#include <atomic>
 
 namespace CIM::util {
 
@@ -14,7 +14,7 @@ namespace CIM::util {
 // 可通过 IdWorker::Init(worker_id) 初始化 worker id，随后调用 NextId() 获取唯一 ID（如需恢复分布式ID，请在启动时初始化）。
 
 class IdWorker {
-  public:
+   public:
     // 获取单例实例
     static IdWorker& GetInstance();
 
@@ -27,7 +27,7 @@ class IdWorker {
     // 当前 worker id
     uint16_t GetWorkerId() const { return worker_id_; }
 
-  private:
+   private:
     IdWorker();
     ~IdWorker() = default;
 
@@ -40,7 +40,7 @@ class IdWorker {
     uint64_t last_ts_;   // 上次时间戳（ms）
     uint64_t sequence_;  // 序列号
 
-    static const uint64_t kEpoch = 1577836800000ULL; // 2020-01-01 00:00:00 UTC in ms
+    static const uint64_t kEpoch = 1577836800000ULL;  // 2020-01-01 00:00:00 UTC in ms
     static const int kWorkerIdBits = 10;
     static const int kSequenceBits = 12;
     static const uint64_t kMaxWorkerId = (1ULL << kWorkerIdBits) - 1;

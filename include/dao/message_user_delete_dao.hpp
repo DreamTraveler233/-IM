@@ -8,7 +8,7 @@ namespace CIM::dao {
 // im_message_user_delete 表 DAO：记录用户侧删除消息（仅影响本人视图）
 class MessageUserDeleteDao {
    public:
-    static bool MarkUserDelete(const uint64_t msg_id, const uint64_t user_id, std::string* err = nullptr);
+    static bool MarkUserDelete(const std::string& msg_id, const uint64_t user_id, std::string* err = nullptr);
 };
 }  // namespace CIM::dao
 

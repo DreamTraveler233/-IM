@@ -1,8 +1,8 @@
 #include "util/id_worker.hpp"
 
 #include <chrono>
-#include <thread>
 #include <stdexcept>
+#include <thread>
 
 namespace CIM::util {
 

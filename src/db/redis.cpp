@@ -1,8 +1,8 @@
-#include "redis.hpp"
+#include "db/redis.hpp"
 
-#include "config.hpp"
-#include "hash_util.hpp"
-#include "macro.hpp"
+#include "config/config.hpp"
+#include "util/hash_util.hpp"
+#include "base/macro.hpp"
 
 namespace CIM {
 static Logger::ptr g_logger = CIM_LOG_NAME("system");

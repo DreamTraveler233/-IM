@@ -35,3 +35,9 @@ sms:
   provider: aliyun                # 短信服务提供商，支持 aliyun/tencent/mock
   code_ttl_secs: 600               # 验证码有效期，单位秒
   code_cleanup_interval: 3600     # 验证码清理间隔，单位秒
+
+# WebSocket 配置
+websocket:
+    allow_unmasked_client_frames: 0   # 是否允许客户端未掩码帧（0严格遵循RFC，1兼容）
+    message:
+        max_size: 33554432               # 单条消息最大尺寸（32MB）

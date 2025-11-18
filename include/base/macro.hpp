@@ -1,9 +1,9 @@
 #pragma once
 
-#include "logger.hpp"
-#include "logger_manager.hpp"
-#include "util.hpp"
-#include "thread.hpp"
+#include "log/logger.hpp"
+#include "log/logger_manager.hpp"
+#include "util/util.hpp"
+#include "io/thread.hpp"
 #include <string.h>
 #include <assert.h>
 

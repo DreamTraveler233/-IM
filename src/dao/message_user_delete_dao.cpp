@@ -6,7 +6,7 @@ namespace CIM::dao {
 
 static constexpr const char* kDBName = "default";
 
-bool MessageUserDeleteDao::MarkUserDelete(const uint64_t msg_id, const uint64_t user_id,
+bool MessageUserDeleteDao::MarkUserDelete(const std::string& msg_id, const uint64_t user_id,
                                           std::string* err) {
     auto db = CIM::MySQLMgr::GetInstance()->get(kDBName);
     if (!db) {
@@ -20,7 +20,7 @@ bool MessageUserDeleteDao::MarkUserDelete(const uint64_t msg_id, const uint64_t 
         if (err) *err = "prepare sql failed";
         return false;
     }
-    stmt->bindUint64(1, msg_id);
+    stmt->bindString(1, msg_id);
     stmt->bindUint64(2, user_id);
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();

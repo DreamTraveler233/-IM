@@ -5,7 +5,7 @@
 #include <memory>
 #include <string>
 
-#include "address.hpp"
+#include "net/address.hpp"
 
 namespace CIM {
 /*

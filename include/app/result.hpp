@@ -33,6 +33,7 @@ using ContactGroupResult = Result<CIM::dao::ContactGroup>;
 using TalkSessionResult = Result<CIM::dao::TalkSessionItem>;
 using ContactDetailsResult = Result<CIM::dao::ContactDetails>;
 using MessageRecordPageResult = Result<CIM::dao::MessagePage>;
+using MessageRecordResult = Result<CIM::dao::MessageRecord>; // 单条消息结果（发送返回）
 using ContactListResult = Result<std::vector<CIM::dao::ContactItem>>;
 using MessageRecordListResult = Result<std::vector<CIM::dao::MessageRecord>>;
 using TalkSessionListResult = Result<std::vector<CIM::dao::TalkSessionItem>>;

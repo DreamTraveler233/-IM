@@ -1,13 +1,18 @@
-#include "ws_session.hpp"
+#include "http/ws_session.hpp"
 
 #include <string.h>
 
-#include "endian.hpp"
-#include "hash_util.hpp"
-#include "macro.hpp"
+#include "base/endian.hpp"
+#include "base/macro.hpp"
+#include "util/hash_util.hpp"
 
 namespace CIM::http {
 static CIM::Logger::ptr g_logger = CIM_LOG_NAME("system");
+
+// 是否允许客户端未掩码帧（仅用于兼容非标准客户端，默认关闭）
+static CIM::ConfigVar<uint32_t>::ptr g_ws_allow_unmasked_client_frames =
+    CIM::Config::Lookup("websocket.allow_unmasked_client_frames", (uint32_t)0,
+                        "allow unmasked websocket frames from client side");
 
 CIM::ConfigVar<uint32_t>::ptr g_websocket_message_max_size = CIM::Config::Lookup(
     "websocket.message.max_size", (uint32_t)1024 * 1024 * 32, "websocket message max size");
@@ -22,13 +27,21 @@ HttpRequest::ptr WSSession::handleShake() {
             CIM_LOG_INFO(g_logger) << "invalid http request";
             break;
         }
+        // Upgrade: websocket（大小写不敏感）
         if (strcasecmp(req->getHeader("Upgrade").c_str(), "websocket")) {
             CIM_LOG_INFO(g_logger) << "http header Upgrade != websocket";
             break;
         }
-        if (strcasecmp(req->getHeader("Connection").c_str(), "Upgrade")) {
-            CIM_LOG_INFO(g_logger) << "http header Connection != Upgrade";
-            break;
+        // Connection 头可能包含多值，如 "keep-alive, Upgrade"，这里放宽为包含 Upgrade 即可
+        {
+            std::string conn = req->getHeader("Connection");
+            std::string conn_lc = conn;
+            for (auto& c : conn_lc) c = ::tolower(c);
+            if (conn_lc.find("upgrade") == std::string::npos) {
+                CIM_LOG_INFO(g_logger) << "http header Connection not contains Upgrade, got: "
+                                       << conn;
+                break;
+            }
         }
         if (req->getHeaderAs<int>("Sec-webSocket-Version") != 13) {
             CIM_LOG_INFO(g_logger) << "http header Sec-webSocket-Version != 13";
@@ -121,8 +134,17 @@ WSFrameMessage::ptr WSRecvMessage(Stream* stream, bool client) {
                    ws_head.opcode == WSFrameHead::TEXT_FRAME ||
                    ws_head.opcode == WSFrameHead::BIN_FRAME) {
             if (!client && !ws_head.mask) {
-                CIM_LOG_INFO(g_logger) << "WSFrameHead mask != 1";
-                break;
+                if (!g_ws_allow_unmasked_client_frames->getValue()) {
+                    CIM_LOG_WARN(g_logger)
+                        << "Unmasked WebSocket frame from client, closing connection (enforce RFC6455)";
+                    // 依据RFC6455返回 1002(Protocol Error) 后再关闭
+                    WSClose(stream, 1002, "Client must mask frames");
+                    break;
+                } else {
+                    CIM_LOG_WARN(g_logger)
+                        << "Unmasked WebSocket frame from client, allowed by config (compat mode)";
+                    // 兼容模式：不中断，继续按未掩码处理
+                }
             }
 
             uint64_t length = 0;
@@ -265,5 +287,50 @@ int32_t WSPong(Stream* stream) {
         return -1;
     }
     return 2;
+}
+
+int32_t WSClose(Stream* stream, uint16_t code, const std::string& reason) {
+    // CLOSE 帧：FIN + OPCODE(CLOSE)
+    uint8_t b1 = 0x80 | (uint8_t)WSFrameHead::CLOSE;
+    std::string payload;
+    payload.resize(2);
+    // 状态码为网络字节序
+    uint16_t ncode = htons(code);
+    memcpy(&payload[0], &ncode, 2);
+    if (!reason.empty()) {
+        payload.append(reason);
+    }
+
+    uint8_t b2 = 0x00;  // 服务端发给客户端不掩码
+    size_t size = payload.size();
+    uint8_t len_indicator = 0;
+    if (size < 126) {
+        len_indicator = (uint8_t)size;
+        b2 |= (len_indicator & 0x7F);
+        if (stream->writeFixSize(&b1, 1) <= 0) goto fail;
+        if (stream->writeFixSize(&b2, 1) <= 0) goto fail;
+    } else if (size < 65536) {
+        len_indicator = 126;
+        b2 |= (len_indicator & 0x7F);
+        if (stream->writeFixSize(&b1, 1) <= 0) goto fail;
+        if (stream->writeFixSize(&b2, 1) <= 0) goto fail;
+        uint16_t len = CIM::byteswap((uint16_t)size);
+        if (stream->writeFixSize(&len, sizeof(len)) <= 0) goto fail;
+    } else {
+        len_indicator = 127;
+        b2 |= (len_indicator & 0x7F);
+        if (stream->writeFixSize(&b1, 1) <= 0) goto fail;
+        if (stream->writeFixSize(&b2, 1) <= 0) goto fail;
+        uint64_t len = CIM::byteswap((uint64_t)size);
+        if (stream->writeFixSize(&len, sizeof(len)) <= 0) goto fail;
+    }
+    if (size > 0) {
+        if (stream->writeFixSize(payload.data(), payload.size()) <= 0) goto fail;
+    }
+    return (int32_t)(2 + (len_indicator == 126 ? 2 : (len_indicator == 127 ? 8 : 0)) + size);
+
+fail:
+    stream->close();
+    return -1;
 }
 }  // namespace CIM::http

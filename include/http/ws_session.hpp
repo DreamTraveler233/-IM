@@ -14,7 +14,7 @@
 #include <memory>
 #include <string>
 
-#include "config.hpp"
+#include "config/config.hpp"
 #include "http_session.hpp"
 
 namespace CIM::http {
@@ -155,7 +155,8 @@ class WSSession : public HttpSession {
      * @param   fin    是否为消息最后一帧
      * @return  实际发送字节数，失败返回负值
      */
-    int32_t sendMessage(const std::string& msg, int32_t opcode = WSFrameHead::TEXT_FRAME, bool fin = true);
+    int32_t sendMessage(const std::string& msg, int32_t opcode = WSFrameHead::TEXT_FRAME,
+                        bool fin = true);
 
     /**
      * @brief   主动发送PING帧
@@ -221,6 +222,15 @@ int32_t WSPing(Stream* stream);
  * @return  发送结果
  */
 int32_t WSPong(Stream* stream);
+
+/**
+ * @brief   发送关闭帧到流（可带状态码与原因）
+ * @param   stream  数据流指针
+ * @param   code    关闭状态码（如1000正常关闭、1002协议错误）
+ * @param   reason  关闭原因（可选，UTF-8）
+ * @return  发送结果
+ */
+int32_t WSClose(Stream* stream, uint16_t code = 1000, const std::string& reason = "");
 
 }  // namespace CIM::http
 

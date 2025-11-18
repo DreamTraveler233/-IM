@@ -1,6 +1,6 @@
 #include "daemon.hpp"
 #include "iomanager.hpp"
-#include "macro.hpp"
+#include "base/macro.hpp"
 
 static CIM::Logger::ptr g_logger = CIM_LOG_ROOT();
 

@@ -5,7 +5,7 @@ namespace CIM::dao {
 static constexpr const char* kDBName = "default";
 
 bool MessageForwardMapDao::AddForwardMap(const std::shared_ptr<CIM::MySQL>& db,
-                                         uint64_t forward_msg_id,
+                                         const std::string& forward_msg_id,
                                          const std::vector<ForwardSrc>& sources, std::string* err) {
     if (!db) {
         if (err) *err = "get mysql connection failed";
@@ -21,8 +21,8 @@ bool MessageForwardMapDao::AddForwardMap(const std::shared_ptr<CIM::MySQL>& db,
         return false;
     }
     for (auto& s : sources) {
-        stmt->bindUint64(1, forward_msg_id);
-        stmt->bindUint64(2, s.src_msg_id);
+        stmt->bindString(1, forward_msg_id);
+        stmt->bindString(2, s.src_msg_id);
         stmt->bindUint64(3, s.src_talk_id);
         stmt->bindUint64(4, s.src_sender_id);
         if (stmt->execute() != 0) {

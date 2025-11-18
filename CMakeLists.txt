@@ -103,23 +103,6 @@ add_library(CIM SHARED ${LIB_SRC})
 target_include_directories(CIM
     PUBLIC
         ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/include/base
-        ${PROJECT_SOURCE_DIR}/include/config
-        ${PROJECT_SOURCE_DIR}/include/http
-        ${PROJECT_SOURCE_DIR}/include/http/servlets
-        ${PROJECT_SOURCE_DIR}/include/log
-        ${PROJECT_SOURCE_DIR}/include/net
-        ${PROJECT_SOURCE_DIR}/include/other
-        ${PROJECT_SOURCE_DIR}/include/util
-        ${PROJECT_SOURCE_DIR}/include/io
-        ${PROJECT_SOURCE_DIR}/include/db
-        ${PROJECT_SOURCE_DIR}/include/streams
-        ${PROJECT_SOURCE_DIR}/include/rock
-        ${PROJECT_SOURCE_DIR}/include/ns
-        ${PROJECT_SOURCE_DIR}/include/ds
-        ${PROJECT_SOURCE_DIR}/include/orm
-        ${PROJECT_SOURCE_DIR}/include/email
-        ${PROJECT_SOURCE_DIR}/include/system
     PRIVATE
         ${SQLITE3_INCLUDE_DIRS}
         ${MYSQL_INCLUDE_DIRS}

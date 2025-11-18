@@ -51,8 +51,13 @@ struct ConnCtx {
 };
 
 static std::atomic<uint64_t> s_conn_seq{1};
-static CIM::RWMutex s_ws_mutex;                        // 保护会话表
-static std::unordered_map<void*, ConnCtx> s_ws_conns;  // key: WSSession* 原始地址
+static CIM::RWMutex s_ws_mutex;  // 保护会话表
+// 记录连接与上下文、会话弱引用，key: WSSession* 原始地址
+struct ConnItem {
+    ConnCtx ctx;
+    std::weak_ptr<CIM::http::WSSession> weak;
+};
+static std::unordered_map<void*, ConnItem> s_ws_conns;
 
 // 发送下行统一封装：{"event":"...","payload":{...},"ackid":"..."}
 static void SendEvent(CIM::http::WSSession::ptr session, const std::string& event,
@@ -62,6 +67,23 @@ static void SendEvent(CIM::http::WSSession::ptr session, const std::string& even
     root["payload"] = payload.isNull() ? Json::Value(Json::objectValue) : payload;
     if (!ackid.empty()) root["ackid"] = ackid;
     session->sendMessage(CIM::JsonUtil::ToString(root));
+}
+
+// 根据 uid 收集当前在线的会话（强引用），避免长时间持锁
+static std::vector<CIM::http::WSSession::ptr> CollectSessions(uint64_t uid) {
+    std::vector<CIM::http::WSSession::ptr> out;
+    {
+        CIM::RWMutex::ReadLock lock(s_ws_mutex);
+        out.reserve(s_ws_conns.size());
+        for (auto& kv : s_ws_conns) {
+            const auto& item = kv.second;
+            if (item.ctx.uid != uid) continue;
+            if (auto sp = item.weak.lock()) {
+                out.push_back(std::move(sp));
+            }
+        }
+    }
+    return out;
 }
 
 bool WsGatewayModule::onServerReady() {
@@ -121,7 +143,10 @@ bool WsGatewayModule::onServerReady() {
 
             {
                 CIM::RWMutex::WriteLock lock(s_ws_mutex);
-                s_ws_conns[(void*)session.get()] = ctx;
+                ConnItem item;
+                item.ctx = ctx;
+                item.weak = session;
+                s_ws_conns[(void*)session.get()] = std::move(item);
             }
 
             // 4) 发送欢迎包，event="connect"
@@ -142,7 +167,7 @@ bool WsGatewayModule::onServerReady() {
                 CIM::RWMutex::ReadLock lock(s_ws_mutex);
                 auto it = s_ws_conns.find((void*)session.get());
                 if (it != s_ws_conns.end()) {
-                    ctx = it->second;
+                    ctx = it->second.ctx;
                 }
             }
 
@@ -211,6 +236,34 @@ bool WsGatewayModule::onServerReady() {
     }
 
     return true;
+}
+
+// ===== 主动推送接口实现 =====
+void WsGatewayModule::PushToUser(uint64_t uid, const std::string& event, const Json::Value& payload,
+                                 const std::string& ackid) {
+    auto sessions = CollectSessions(uid);
+    for (auto& s : sessions) {
+        SendEvent(s, event, payload, ackid);
+    }
+}
+
+void WsGatewayModule::PushImMessage(uint8_t talk_mode, uint64_t to_from_id, uint64_t from_id,
+                                    const Json::Value& body) {
+    Json::Value payload;
+    payload["to_from_id"] = (Json::UInt64)to_from_id;
+    payload["from_id"] = (Json::UInt64)from_id;
+    payload["talk_mode"] = talk_mode;
+    payload["body"] = body;
+
+    if (talk_mode == 1) {
+        // 单聊：推送给对端用户；同时也推送给发送者的其它设备进行会话同步
+        PushToUser(to_from_id, "im.message", payload);
+        PushToUser(from_id, "im.message", payload);
+    } else {
+        // 群聊：此处暂不实现广播，留待后续根据群成员在线表进行推送
+        // 可以至少给发送者做自我同步，避免多端不一致
+        PushToUser(from_id, "im.message", payload);
+    }
 }
 
 }  // namespace CIM::api

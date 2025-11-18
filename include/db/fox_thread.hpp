@@ -11,8 +11,8 @@
 #include <thread>
 #include <vector>
 
-#include "lock.hpp"
-#include "singleton.hpp"
+#include "io/lock.hpp"
+#include "base/singleton.hpp"
 
 namespace CIM {
 class FoxThread;

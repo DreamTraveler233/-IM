@@ -1,10 +1,10 @@
-#include "fox_thread.hpp"
+#include "db/fox_thread.hpp"
 
 #include <iomanip>
 
-#include "config.hpp"
-#include "macro.hpp"
-#include "util.hpp"
+#include "config/config.hpp"
+#include "base/macro.hpp"
+#include "util/util.hpp"
 
 namespace CIM {
 static Logger::ptr g_logger = CIM_LOG_NAME("system");

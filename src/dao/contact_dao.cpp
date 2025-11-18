@@ -3,7 +3,7 @@
 #include "db/mysql.hpp"
 
 namespace CIM::dao {
-    
+
 static constexpr const char* kDBName = "default";
 
 bool ContactDAO::ListByUser(uint64_t user_id, std::vector<ContactItem>& out, std::string* err) {
@@ -174,9 +174,9 @@ bool ContactDAO::UpsertWithConn(const std::shared_ptr<CIM::MySQL>& db, const Con
     return true;
 }
 
-bool ContactDAO::EditRemark(const uint64_t user_id, const uint64_t contact_id,
-                            const std::string& remark, std::string* err) {
-    auto db = CIM::MySQLMgr::GetInstance()->get(kDBName);
+bool ContactDAO::EditRemark(const std::shared_ptr<CIM::MySQL>& db, const uint64_t user_id,
+                            const uint64_t contact_id, const std::string& remark,
+                            std::string* err) {
     if (!db) {
         if (err) *err = "get mysql connection failed";
         return false;

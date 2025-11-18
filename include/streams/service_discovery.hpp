@@ -1,109 +1,121 @@
 #ifndef __CIM_STREAMS_SERVICE_DISCOVERY_HPP__
 #define __CIM_STREAMS_SERVICE_DISCOVERY_HPP__
 
-#include "lock.hpp"
-#include "iomanager.hpp"
-#include "zk_client.hpp"
-
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <string>
 
-namespace CIM
-{
-    class ServiceItemInfo
-    {
-    public:
-        typedef std::shared_ptr<ServiceItemInfo> ptr;
-        static ServiceItemInfo::ptr Create(const std::string &ip_and_port, const std::string &data);
+#include "io/iomanager.hpp"
+#include "io/lock.hpp"
+#include "other/zk_client.hpp"
 
-        uint64_t getId() const { return m_id; }
-        uint16_t getPort() const { return m_port; }
-        const std::string &getIp() const { return m_ip; }
-        const std::string &getData() const { return m_data; }
+namespace CIM {
+class ServiceItemInfo {
+   public:
+    typedef std::shared_ptr<ServiceItemInfo> ptr;
+    static ServiceItemInfo::ptr Create(const std::string& ip_and_port, const std::string& data);
 
-        std::string toString() const;
+    uint64_t getId() const { return m_id; }
+    uint16_t getPort() const { return m_port; }
+    const std::string& getIp() const { return m_ip; }
+    const std::string& getData() const { return m_data; }
 
-    private:
-        uint64_t m_id;
-        uint16_t m_port;
-        std::string m_ip;
-        std::string m_data;
-    };
+    std::string toString() const;
 
-    class IServiceDiscovery
-    {
-    public:
-        typedef std::shared_ptr<IServiceDiscovery> ptr;
-        typedef std::function<void(const std::string &domain, const std::string &service, const std::unordered_map<uint64_t, ServiceItemInfo::ptr> &old_value, const std::unordered_map<uint64_t, ServiceItemInfo::ptr> &new_value)> service_callback;
-        virtual ~IServiceDiscovery() {}
+   private:
+    uint64_t m_id;
+    uint16_t m_port;
+    std::string m_ip;
+    std::string m_data;
+};
 
-        void registerServer(const std::string &domain, const std::string &service,
-                            const std::string &ip_and_port, const std::string &data);
-        void queryServer(const std::string &domain, const std::string &service);
-        void listServer(std::unordered_map<std::string, std::unordered_map<std::string, std::unordered_map<uint64_t, ServiceItemInfo::ptr>>> &infos);
-        void listRegisterServer(std::unordered_map<std::string, std::unordered_map<std::string, std::unordered_map<std::string, std::string>>> &infos);
-        void listQueryServer(std::unordered_map<std::string, std::unordered_set<std::string>> &infos);
+class IServiceDiscovery {
+   public:
+    typedef std::shared_ptr<IServiceDiscovery> ptr;
+    typedef std::function<void(const std::string& domain, const std::string& service,
+                               const std::unordered_map<uint64_t, ServiceItemInfo::ptr>& old_value,
+                               const std::unordered_map<uint64_t, ServiceItemInfo::ptr>& new_value)>
+        service_callback;
+    virtual ~IServiceDiscovery() {}
 
-        virtual void start() = 0;
-        virtual void stop() = 0;
+    void registerServer(const std::string& domain, const std::string& service,
+                        const std::string& ip_and_port, const std::string& data);
+    void queryServer(const std::string& domain, const std::string& service);
+    void listServer(
+        std::unordered_map<
+            std::string,
+            std::unordered_map<std::string, std::unordered_map<uint64_t, ServiceItemInfo::ptr>>>&
+            infos);
+    void listRegisterServer(
+        std::unordered_map<
+            std::string,
+            std::unordered_map<std::string, std::unordered_map<std::string, std::string>>>& infos);
+    void listQueryServer(std::unordered_map<std::string, std::unordered_set<std::string>>& infos);
 
-        service_callback getServiceCallback() const { return m_cb; }
-        void setServiceCallback(service_callback v) { m_cb = v; }
+    virtual void start() = 0;
+    virtual void stop() = 0;
 
-        void setQueryServer(const std::unordered_map<std::string, std::unordered_set<std::string>> &v);
+    service_callback getServiceCallback() const { return m_cb; }
+    void setServiceCallback(service_callback v) { m_cb = v; }
 
-    protected:
-        RWMutex m_mutex;
-        // domain -> [service -> [id -> ServiceItemInfo] ]
-        std::unordered_map<std::string, std::unordered_map<std::string, std::unordered_map<uint64_t, ServiceItemInfo::ptr>>> m_datas;
-        // domain -> [service -> [ip_and_port -> data] ]
-        std::unordered_map<std::string, std::unordered_map<std::string, std::unordered_map<std::string, std::string>>> m_registerInfos;
-        // domain -> [service]
-        std::unordered_map<std::string, std::unordered_set<std::string>> m_queryInfos;
+    void setQueryServer(const std::unordered_map<std::string, std::unordered_set<std::string>>& v);
 
-        service_callback m_cb;
-    };
+   protected:
+    RWMutex m_mutex;
+    // domain -> [service -> [id -> ServiceItemInfo] ]
+    std::unordered_map<
+        std::string,
+        std::unordered_map<std::string, std::unordered_map<uint64_t, ServiceItemInfo::ptr>>>
+        m_datas;
+    // domain -> [service -> [ip_and_port -> data] ]
+    std::unordered_map<
+        std::string, std::unordered_map<std::string, std::unordered_map<std::string, std::string>>>
+        m_registerInfos;
+    // domain -> [service]
+    std::unordered_map<std::string, std::unordered_set<std::string>> m_queryInfos;
 
-    class ZKServiceDiscovery : public IServiceDiscovery, public std::enable_shared_from_this<ZKServiceDiscovery>
-    {
-    public:
-        typedef std::shared_ptr<ZKServiceDiscovery> ptr;
-        ZKServiceDiscovery(const std::string &hosts);
-        const std::string &getSelfInfo() const { return m_selfInfo; }
-        void setSelfInfo(const std::string &v) { m_selfInfo = v; }
-        const std::string &getSelfData() const { return m_selfData; }
-        void setSelfData(const std::string &v) { m_selfData = v; }
+    service_callback m_cb;
+};
 
-        virtual void start();
-        virtual void stop();
+class ZKServiceDiscovery : public IServiceDiscovery,
+                           public std::enable_shared_from_this<ZKServiceDiscovery> {
+   public:
+    typedef std::shared_ptr<ZKServiceDiscovery> ptr;
+    ZKServiceDiscovery(const std::string& hosts);
+    const std::string& getSelfInfo() const { return m_selfInfo; }
+    void setSelfInfo(const std::string& v) { m_selfInfo = v; }
+    const std::string& getSelfData() const { return m_selfData; }
+    void setSelfData(const std::string& v) { m_selfData = v; }
 
-    private:
-        void onWatch(int type, int stat, const std::string &path, ZKClient::ptr);
-        void onZKConnect(const std::string &path, ZKClient::ptr client);
-        void onZKChild(const std::string &path, ZKClient::ptr client);
-        void onZKChanged(const std::string &path, ZKClient::ptr client);
-        void onZKDeleted(const std::string &path, ZKClient::ptr client);
-        void onZKExpiredSession(const std::string &path, ZKClient::ptr client);
+    virtual void start();
+    virtual void stop();
 
-        bool registerInfo(const std::string &domain, const std::string &service,
-                          const std::string &ip_and_port, const std::string &data);
-        bool queryInfo(const std::string &domain, const std::string &service);
-        bool queryData(const std::string &domain, const std::string &service);
+   private:
+    void onWatch(int type, int stat, const std::string& path, ZKClient::ptr);
+    void onZKConnect(const std::string& path, ZKClient::ptr client);
+    void onZKChild(const std::string& path, ZKClient::ptr client);
+    void onZKChanged(const std::string& path, ZKClient::ptr client);
+    void onZKDeleted(const std::string& path, ZKClient::ptr client);
+    void onZKExpiredSession(const std::string& path, ZKClient::ptr client);
 
-        bool existsOrCreate(const std::string &path);
-        bool getChildren(const std::string &path);
+    bool registerInfo(const std::string& domain, const std::string& service,
+                      const std::string& ip_and_port, const std::string& data);
+    bool queryInfo(const std::string& domain, const std::string& service);
+    bool queryData(const std::string& domain, const std::string& service);
 
-    private:
-        std::string m_hosts;
-        std::string m_selfInfo;
-        std::string m_selfData;
-        ZKClient::ptr m_client;
-        Timer::ptr m_timer;
-        bool m_isOnTimer = false;
-    };
+    bool existsOrCreate(const std::string& path);
+    bool getChildren(const std::string& path);
 
-}
+   private:
+    std::string m_hosts;
+    std::string m_selfInfo;
+    std::string m_selfData;
+    ZKClient::ptr m_client;
+    Timer::ptr m_timer;
+    bool m_isOnTimer = false;
+};
+
+}  // namespace CIM
 
 #endif

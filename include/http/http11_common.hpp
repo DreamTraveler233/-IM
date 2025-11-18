@@ -21,7 +21,7 @@
  * @param at 指向元素数据的指针
  * @param length 元素数据的长度
  */
-typedef void (*element_cb)(void *data, const char *at, size_t length);
+typedef void (*element_cb)(void* data, const char* at, size_t length);
 
 /**
  * @brief 字段回调函数类型定义
@@ -35,4 +35,5 @@ typedef void (*element_cb)(void *data, const char *at, size_t length);
  * @param value 指向字段值的指针
  * @param vlen 字段值的长度
  */
-typedef void (*field_cb)(void *data, const char *field, size_t flen, const char *value, size_t vlen);
+typedef void (*field_cb)(void* data, const char* field, size_t flen, const char* value,
+                         size_t vlen);

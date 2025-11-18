@@ -9,7 +9,7 @@
 #ifndef __CIM_HTTP_WS_SERVER_HPP__
 #define __CIM_HTTP_WS_SERVER_HPP__
 
-#include "tcp_server.hpp"
+#include "net/tcp_server.hpp"
 #include "ws_servlet.hpp"
 #include "ws_session.hpp"
 

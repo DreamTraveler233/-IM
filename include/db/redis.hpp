@@ -3,18 +3,17 @@
 #define __CIM_DB_REDIS_HPP__
 
 #include <cstdlib>
+#include <stdlib.h>
 #include <hiredis-vip/adapters/libevent.h>
 #include <hiredis-vip/hircluster.h>
 #include <hiredis-vip/hiredis.h>
-#include <stdlib.h>
 #include <sys/time.h>
-
 #include <memory>
 #include <string>
 
 #include "fox_thread.hpp"
-#include "lock.hpp"
-#include "singleton.hpp"
+#include "io/lock.hpp"
+#include "base/singleton.hpp"
 
 namespace CIM {
 typedef std::shared_ptr<redisReply> ReplyPtr;

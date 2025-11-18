@@ -6,7 +6,7 @@ namespace CIM::dao {
 
 static constexpr const char* kDBName = "default";
 
-bool MessageReadDao::MarkRead(const uint64_t msg_id, const uint64_t user_id, std::string* err) {
+bool MessageReadDao::MarkRead(const std::string& msg_id, const uint64_t user_id, std::string* err) {
     auto db = CIM::MySQLMgr::GetInstance()->get(kDBName);
     if (!db) {
         if (err) *err = "get mysql connection failed";
@@ -19,7 +19,7 @@ bool MessageReadDao::MarkRead(const uint64_t msg_id, const uint64_t user_id, std
         if (err) *err = "prepare sql failed";
         return false;
     }
-    stmt->bindUint64(1, msg_id);
+    stmt->bindString(1, msg_id);
     stmt->bindUint64(2, user_id);
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();

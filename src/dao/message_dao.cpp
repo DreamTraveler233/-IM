@@ -2,7 +2,7 @@
 
 #include <sstream>
 
-#include "macro.hpp"
+#include "base/macro.hpp"
 
 namespace CIM::dao {
 
@@ -16,65 +16,65 @@ static const char* kSelectCols =
     "quote_msg_id,is_revoked,revoke_by,revoke_time,created_at,updated_at";
 }  // namespace
 
-bool MessageDao::Create(const std::shared_ptr<CIM::MySQL>& db, const Message& m, uint64_t& out_id,
-                        std::string* err) {
+bool MessageDao::Create(const std::shared_ptr<CIM::MySQL>& db, const Message& m, std::string* err) {
     if (!db) {
         if (err) *err = "get mysql connection failed";
         return false;
     }
+
     const char* sql =
         "INSERT INTO im_message "
-        "(talk_id,sequence,talk_mode,msg_type,sender_id,receiver_id,group_id,"  // 8
+        "(id,talk_id,sequence,talk_mode,msg_type,sender_id,receiver_id,group_id,"  // 9
         "content_text,extra,quote_msg_id,is_revoked,revoke_by,revoke_time,created_at,updated_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())";
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())";
     auto stmt = db->prepare(sql);
     if (!stmt) {
         if (err) *err = "prepare sql failed";
         return false;
     }
-    stmt->bindUint64(1, m.talk_id);
-    stmt->bindUint64(2, m.sequence);
-    stmt->bindInt8(3, m.talk_mode);
-    stmt->bindInt16(4, m.msg_type);
-    stmt->bindUint64(5, m.sender_id);
+    stmt->bindString(1, m.id);
+    stmt->bindUint64(2, m.talk_id);
+    stmt->bindUint64(3, m.sequence);
+    stmt->bindInt8(4, m.talk_mode);
+    stmt->bindInt16(5, m.msg_type);
+    stmt->bindUint64(6, m.sender_id);
     if (m.receiver_id)
-        stmt->bindUint64(6, m.receiver_id);
-    else
-        stmt->bindNull(6);
-    if (m.group_id)
-        stmt->bindUint64(7, m.group_id);
+        stmt->bindUint64(7, m.receiver_id);
     else
         stmt->bindNull(7);
-    if (!m.content_text.empty())
-        stmt->bindString(8, m.content_text);
+    if (m.group_id)
+        stmt->bindUint64(8, m.group_id);
     else
         stmt->bindNull(8);
-    if (!m.extra.empty())
-        stmt->bindString(9, m.extra);
+    if (!m.content_text.empty())
+        stmt->bindString(9, m.content_text);
     else
         stmt->bindNull(9);
-    if (m.quote_msg_id)
-        stmt->bindUint64(10, m.quote_msg_id);
+    if (!m.extra.empty())
+        stmt->bindString(10, m.extra);
     else
         stmt->bindNull(10);
-    stmt->bindInt8(11, m.is_revoked);
-    if (m.revoke_by)
-        stmt->bindUint64(12, m.revoke_by);
+    if (!m.quote_msg_id.empty())
+        stmt->bindString(11, m.quote_msg_id);
     else
-        stmt->bindNull(12);
-    if (m.revoke_time)
-        stmt->bindTime(13, m.revoke_time);
+        stmt->bindNull(11);
+    stmt->bindInt8(12, m.is_revoked);
+    if (m.revoke_by)
+        stmt->bindUint64(13, m.revoke_by);
     else
         stmt->bindNull(13);
+    if (m.revoke_time)
+        stmt->bindTime(14, m.revoke_time);
+    else
+        stmt->bindNull(14);
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();
         return false;
     }
-    out_id = stmt->getLastInsertId();
     return true;
 }
 
-bool MessageDao::GetById(const uint64_t msg_id, Message& out, std::string* err) {
+bool MessageDao::GetById(const std::string& msg_id, Message& out, std::string* err) {
     auto db = CIM::MySQLMgr::GetInstance()->get(kDBName);
     if (!db) {
         if (err) *err = "get mysql connection failed";
@@ -90,7 +90,7 @@ bool MessageDao::GetById(const uint64_t msg_id, Message& out, std::string* err) 
         return false;
     }
 
-    stmt->bindUint64(1, msg_id);
+    stmt->bindString(1, msg_id);
 
     auto res = stmt->query();
     if (!res) {
@@ -103,7 +103,7 @@ bool MessageDao::GetById(const uint64_t msg_id, Message& out, std::string* err) 
         return false;
     }
 
-    out.id = res->getUint64(0);
+    out.id = res->getString(0);
     out.talk_id = res->getUint64(1);
     out.sequence = res->getUint64(2);
     out.talk_mode = res->getUint8(3);
@@ -113,7 +113,7 @@ bool MessageDao::GetById(const uint64_t msg_id, Message& out, std::string* err) 
     out.group_id = res->isNull(7) ? 0 : res->getUint64(7);
     out.content_text = res->isNull(8) ? std::string() : res->getString(8);
     out.extra = res->isNull(9) ? std::string() : res->getString(9);
-    out.quote_msg_id = res->isNull(10) ? 0 : res->getUint64(10);
+    out.quote_msg_id = res->isNull(10) ? std::string() : res->getString(10);
     out.is_revoked = res->getUint8(11);
     out.revoke_by = res->isNull(12) ? 0 : res->getUint64(12);
     out.revoke_time = res->isNull(13) ? 0 : res->getTime(13);
@@ -125,8 +125,6 @@ bool MessageDao::GetById(const uint64_t msg_id, Message& out, std::string* err) 
 
 bool MessageDao::ListRecentDesc(const uint64_t talk_id, const uint64_t anchor_seq,
                                 const size_t limit, std::vector<Message>& out, std::string* err) {
-    CIM_LOG_DEBUG(g_logger) << "ListRecentDesc called with talk_id: " << talk_id
-                            << ", anchor_seq: " << anchor_seq << ", limit: " << limit;
     auto db = CIM::MySQLMgr::GetInstance()->get(kDBName);
     if (!db) {
         if (err) *err = "get mysql connection failed";
@@ -141,9 +139,6 @@ bool MessageDao::ListRecentDesc(const uint64_t talk_id, const uint64_t anchor_se
         oss << " AND sequence<?";
     }
     oss << " ORDER BY sequence DESC LIMIT ?";
-
-    CIM_LOG_DEBUG(g_logger) << "SQL: " << oss.str();
-
     auto stmt = db->prepare(oss.str().c_str());
     if (!stmt) {
         if (err) *err = "prepare sql failed";
@@ -169,7 +164,7 @@ bool MessageDao::ListRecentDesc(const uint64_t talk_id, const uint64_t anchor_se
 
     while (res->next()) {
         Message m;
-        m.id = res->getUint64(0);
+        m.id = res->getString(0);
         m.talk_id = res->getUint64(1);
         m.sequence = res->getUint64(2);
         m.talk_mode = res->getUint8(3);
@@ -179,7 +174,7 @@ bool MessageDao::ListRecentDesc(const uint64_t talk_id, const uint64_t anchor_se
         m.group_id = res->isNull(7) ? 0 : res->getUint64(7);
         m.content_text = res->isNull(8) ? std::string() : res->getString(8);
         m.extra = res->isNull(9) ? std::string() : res->getString(9);
-        m.quote_msg_id = res->isNull(10) ? 0 : res->getUint64(10);
+        m.quote_msg_id = res->isNull(10) ? std::string() : res->getString(10);
         m.is_revoked = res->getUint8(11);
         m.revoke_by = res->isNull(12) ? 0 : res->getUint64(12);
         m.revoke_time = res->isNull(13) ? 0 : res->getTime(13);
@@ -204,6 +199,8 @@ bool MessageDao::ListRecentDescWithFilter(const uint64_t talk_id, const uint64_t
     oss << "SELECT " << kSelectCols << " FROM im_message m WHERE talk_id=?";
     if (anchor_seq > 0) oss << " AND sequence<?";
     if (msg_type != 0) oss << " AND msg_type=?";
+    // 过滤掉已撤回的消息（is_revoked != 2 表示已被撤回/不可见）
+    oss << " AND m.is_revoked=2";
     // 过滤掉用户已删除的消息
     if (user_id != 0) {
         oss << " AND NOT EXISTS(SELECT 1 FROM im_message_user_delete d WHERE d.msg_id=m.id AND "
@@ -233,7 +230,7 @@ bool MessageDao::ListRecentDescWithFilter(const uint64_t talk_id, const uint64_t
     out.clear();
     while (res->next()) {
         Message m;
-        m.id = res->getUint64(0);
+        m.id = res->getString(0);
         m.talk_id = res->getUint64(1);
         m.sequence = res->getUint64(2);
         m.talk_mode = res->getUint8(3);
@@ -243,7 +240,7 @@ bool MessageDao::ListRecentDescWithFilter(const uint64_t talk_id, const uint64_t
         m.group_id = res->isNull(7) ? 0 : res->getUint64(7);
         m.content_text = res->isNull(8) ? std::string() : res->getString(8);
         m.extra = res->isNull(9) ? std::string() : res->getString(9);
-        m.quote_msg_id = res->isNull(10) ? 0 : res->getUint64(10);
+        m.quote_msg_id = res->isNull(10) ? std::string() : res->getString(10);
         m.is_revoked = res->getUint8(11);
         m.revoke_by = res->isNull(12) ? 0 : res->getUint64(12);
         m.revoke_time = res->isNull(13) ? 0 : res->getTime(13);
@@ -254,7 +251,7 @@ bool MessageDao::ListRecentDescWithFilter(const uint64_t talk_id, const uint64_t
     return true;
 }
 
-bool MessageDao::GetByIds(const std::vector<uint64_t>& ids, std::vector<Message>& out,
+bool MessageDao::GetByIds(const std::vector<std::string>& ids, std::vector<Message>& out,
                           std::string* err) {
     if (ids.empty()) {
         out.clear();
@@ -266,7 +263,7 @@ bool MessageDao::GetByIds(const std::vector<uint64_t>& ids, std::vector<Message>
         return false;
     }
     // chunk ids to avoid huge IN lists
-    std::vector<uint64_t> ids2 = ids;
+    std::vector<std::string> ids2 = ids;
     std::sort(ids2.begin(), ids2.end());
     ids2.erase(std::unique(ids2.begin(), ids2.end()), ids2.end());
     const size_t CHUNK = 128;
@@ -285,7 +282,7 @@ bool MessageDao::GetByIds(const std::vector<uint64_t>& ids, std::vector<Message>
             return false;
         }
         for (size_t i = s; i < e; ++i) {
-            stmt->bindUint64(static_cast<int>(i - s + 1), ids2[i]);
+            stmt->bindString(static_cast<int>(i - s + 1), ids2[i]);
         }
         auto res = stmt->query();
         if (!res) {
@@ -295,7 +292,7 @@ bool MessageDao::GetByIds(const std::vector<uint64_t>& ids, std::vector<Message>
         out.clear();
         while (res->next()) {
             Message m;
-            m.id = res->getUint64(0);
+            m.id = res->getString(0);
             m.talk_id = res->getUint64(1);
             m.sequence = res->getUint64(2);
             m.talk_mode = res->getUint8(3);
@@ -305,7 +302,7 @@ bool MessageDao::GetByIds(const std::vector<uint64_t>& ids, std::vector<Message>
             m.group_id = res->isNull(7) ? 0 : res->getUint64(7);
             m.content_text = res->isNull(8) ? std::string() : res->getString(8);
             m.extra = res->isNull(9) ? std::string() : res->getString(9);
-            m.quote_msg_id = res->isNull(10) ? 0 : res->getUint64(10);
+            m.quote_msg_id = res->isNull(10) ? std::string() : res->getString(10);
             m.is_revoked = res->getUint8(11);
             m.revoke_by = res->isNull(12) ? 0 : res->getUint64(12);
             m.revoke_time = res->isNull(13) ? 0 : res->getTime(13);
@@ -317,7 +314,7 @@ bool MessageDao::GetByIds(const std::vector<uint64_t>& ids, std::vector<Message>
     return true;
 }
 
-bool MessageDao::GetByIdsWithFilter(const std::vector<uint64_t>& ids, const uint64_t user_id,
+bool MessageDao::GetByIdsWithFilter(const std::vector<std::string>& ids, const uint64_t user_id,
                                     std::vector<Message>& out, std::string* err) {
     if (ids.empty()) {
         out.clear();
@@ -331,7 +328,7 @@ bool MessageDao::GetByIdsWithFilter(const std::vector<uint64_t>& ids, const uint
     std::ostringstream oss;
     oss << "SELECT " << kSelectCols << " FROM im_message WHERE id IN (";
     // dedup and chunk
-    std::vector<uint64_t> ids2 = ids;
+    std::vector<std::string> ids2 = ids;
     std::sort(ids2.begin(), ids2.end());
     ids2.erase(std::unique(ids2.begin(), ids2.end()), ids2.end());
     const size_t CHUNK = 128;
@@ -355,7 +352,7 @@ bool MessageDao::GetByIdsWithFilter(const std::vector<uint64_t>& ids, const uint
         }
         int idx = 1;
         for (size_t i = s; i < e; ++i) {
-            stmt->bindUint64(idx++, ids2[i]);
+            stmt->bindString(idx++, ids2[i]);
         }
         if (user_id != 0) stmt->bindUint64(idx++, user_id);
         auto res = stmt->query();
@@ -366,7 +363,7 @@ bool MessageDao::GetByIdsWithFilter(const std::vector<uint64_t>& ids, const uint
         out.clear();
         while (res->next()) {
             Message m;
-            m.id = res->getUint64(0);
+            m.id = res->getString(0);
             m.talk_id = res->getUint64(1);
             m.sequence = res->getUint64(2);
             m.talk_mode = res->getUint8(3);
@@ -376,7 +373,7 @@ bool MessageDao::GetByIdsWithFilter(const std::vector<uint64_t>& ids, const uint
             m.group_id = res->isNull(7) ? 0 : res->getUint64(7);
             m.content_text = res->isNull(8) ? std::string() : res->getString(8);
             m.extra = res->isNull(9) ? std::string() : res->getString(9);
-            m.quote_msg_id = res->isNull(10) ? 0 : res->getUint64(10);
+            m.quote_msg_id = res->isNull(10) ? std::string() : res->getString(10);
             m.is_revoked = res->getUint8(11);
             m.revoke_by = res->isNull(12) ? 0 : res->getUint64(12);
             m.revoke_time = res->isNull(13) ? 0 : res->getTime(13);
@@ -414,7 +411,7 @@ bool MessageDao::ListAfterAsc(const uint64_t talk_id, const uint64_t after_seq, 
     out.clear();
     while (res->next()) {
         Message m;
-        m.id = res->getUint64(0);
+        m.id = res->getString(0);
         m.talk_id = res->getUint64(1);
         m.sequence = res->getUint64(2);
         m.talk_mode = static_cast<uint8_t>(res->getInt8(3));
@@ -424,7 +421,7 @@ bool MessageDao::ListAfterAsc(const uint64_t talk_id, const uint64_t after_seq, 
         m.group_id = res->isNull(7) ? 0 : res->getUint64(7);
         m.content_text = res->isNull(8) ? std::string() : res->getString(8);
         m.extra = res->isNull(9) ? std::string() : res->getString(9);
-        m.quote_msg_id = res->isNull(10) ? 0 : res->getUint64(10);
+        m.quote_msg_id = res->isNull(10) ? std::string() : res->getString(10);
         m.is_revoked = static_cast<uint8_t>(res->getInt8(11));
         m.revoke_by = res->isNull(12) ? 0 : res->getUint64(12);
         m.revoke_time = res->isNull(13) ? 0 : res->getTime(13);
@@ -435,7 +432,7 @@ bool MessageDao::ListAfterAsc(const uint64_t talk_id, const uint64_t after_seq, 
     return true;
 }
 
-bool MessageDao::Revoke(const uint64_t msg_id, const uint64_t user_id, std::string* err) {
+bool MessageDao::Revoke(const std::string& msg_id, const uint64_t user_id, std::string* err) {
     auto db = CIM::MySQLMgr::GetInstance()->get(kDBName);
     if (!db) {
         if (err) *err = "get mysql connection failed";
@@ -450,7 +447,7 @@ bool MessageDao::Revoke(const uint64_t msg_id, const uint64_t user_id, std::stri
         return false;
     }
     stmt->bindUint64(1, user_id);
-    stmt->bindUint64(2, msg_id);
+    stmt->bindString(2, msg_id);
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();
         return false;

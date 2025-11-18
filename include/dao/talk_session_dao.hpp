@@ -40,7 +40,9 @@ struct TalkSession {
     uint64_t last_ack_seq = 0;  // 最后已读序号
     uint32_t unread_num = 0;    // 未读消息数
 
-    std::optional<uint64_t> last_msg_id;         // 最后一条消息的ID
+    std::optional<std::string> last_msg_id;  // 最后一条消息的ID（CHAR(32)）
+    // 上面字段类型改为字符串：
+
     std::optional<uint16_t> last_msg_type;       // 最后一条消息的类型
     std::optional<uint64_t> last_sender_id;      // 最后一条消息的发送者ID
     std::optional<std::string> last_msg_digest;  // 最后一条消息的摘要
@@ -85,9 +87,23 @@ class TalkSessionDAO {
     // - 设置 last_msg_id/type/sender/digest/time，updated_at=NOW()
     // - 对除 sender 外的用户未读数 +1（软删除的会话不更新）
     static bool bumpOnNewMessage(const std::shared_ptr<CIM::MySQL>& db, const uint64_t talk_id,
-                                 const uint64_t sender_user_id, const uint64_t last_msg_id,
+                                 const uint64_t sender_user_id, const std::string& last_msg_id,
                                  const uint16_t last_msg_type, const std::string& last_msg_digest,
                                  std::string* err = nullptr);
+    // 为指定用户更新会话的最后消息字段（用于用户删除消息后重建摘要）
+    static bool updateLastMsgForUser(const uint64_t user_id, const uint64_t talk_id,
+                                     const std::optional<std::string>& last_msg_id,
+                                     const std::optional<uint16_t>& last_msg_type,
+                                     const std::optional<uint64_t>& last_sender_id,
+                                     const std::optional<std::string>& last_msg_digest,
+                                     std::string* err = nullptr);
+    // 列出对于指定 talk_id 且 last_msg_id 匹配的所有 user_id（用于撤回时重建会话摘要）
+    static bool listUsersByLastMsg(const uint64_t talk_id, const std::string& last_msg_id,
+                                   std::vector<uint64_t>& out_user_ids, std::string* err = nullptr);
+    // 修改会话备注
+    static bool EditRemarkWithConn(const std::shared_ptr<CIM::MySQL>& db, const uint64_t user_id,
+                                   const uint64_t to_from_id, const std::string& remark,
+                                   std::string* err = nullptr);
 };
 }  // namespace CIM::dao
 #endif  // __CIM_DAO_TALK_SESSION_HPP__

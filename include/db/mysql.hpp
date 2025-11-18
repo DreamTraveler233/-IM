@@ -9,8 +9,8 @@
 #include <vector>
 
 #include "db.hpp"
-#include "lock.hpp"
-#include "singleton.hpp"
+#include "io/lock.hpp"
+#include "base/singleton.hpp"
 
 namespace CIM {
 
@@ -231,8 +231,6 @@ class MySQLStmt : public IStmt, public std::enable_shared_from_this<MySQLStmt> {
     int bind(int idx, const std::string& value);
     int bind(int idx, const char* value);
     int bind(int idx, const void* value, int len);
-    // int bind(int idx, const MYSQL_TIME& value, int type = MYSQL_TYPE_TIMESTAMP);
-    // for null type
     int bind(int idx);
 
     int bindInt8(int idx, const int8_t& value) override;
@@ -249,7 +247,6 @@ class MySQLStmt : public IStmt, public std::enable_shared_from_this<MySQLStmt> {
     int bindString(int idx, const std::string& value) override;
     int bindBlob(int idx, const void* value, int64_t size) override;
     int bindBlob(int idx, const std::string& value) override;
-    // int bindTime(int idx, const MYSQL_TIME& value, int type = MYSQL_TYPE_TIMESTAMP);
     int bindTime(int idx, const time_t& value) override;
     int bindNull(int idx) override;
 

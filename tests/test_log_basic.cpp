@@ -1,7 +1,7 @@
-#include "logger.hpp"
-#include "logger_manager.hpp"
-#include "config.hpp"
-#include "log_appender.hpp"
+#include "log/logger.hpp"
+#include "log/logger_manager.hpp"
+#include "config/config.hpp"
+#include "log/log_appender.hpp"
 #include <yaml-cpp/yaml.h>
 #include <iostream>
 #include <cassert>

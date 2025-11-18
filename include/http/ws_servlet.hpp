@@ -10,7 +10,7 @@
 #define __CIM_HTTP_WS_SERVLET_HPP__
 
 #include "http_servlet.hpp"
-#include "thread.hpp"
+#include "io/thread.hpp"
 #include "ws_session.hpp"
 
 namespace CIM::http {
@@ -45,7 +45,8 @@ class WSServlet : public Servlet {
      * @param   session   HTTP会话对象
      * @return  固定返回0
      */
-    virtual int32_t handle(CIM::http::HttpRequest::ptr request, CIM::http::HttpResponse::ptr response,
+    virtual int32_t handle(CIM::http::HttpRequest::ptr request,
+                           CIM::http::HttpResponse::ptr response,
                            CIM::http::HttpSession::ptr session) override {
         return 0;
     }
@@ -57,7 +58,8 @@ class WSServlet : public Servlet {
      * @return  0表示成功，非0表示拒绝连接
      * @note    返回非0将导致连接被关闭
      */
-    virtual int32_t onConnect(CIM::http::HttpRequest::ptr header, CIM::http::WSSession::ptr session) = 0;
+    virtual int32_t onConnect(CIM::http::HttpRequest::ptr header,
+                              CIM::http::WSSession::ptr session) = 0;
 
     /**
      * @brief   连接关闭事件回调（必须实现）
@@ -65,7 +67,8 @@ class WSServlet : public Servlet {
      * @param   session  WebSocket会话对象
      * @return  0表示正常
      */
-    virtual int32_t onClose(CIM::http::HttpRequest::ptr header, CIM::http::WSSession::ptr session) = 0;
+    virtual int32_t onClose(CIM::http::HttpRequest::ptr header,
+                            CIM::http::WSSession::ptr session) = 0;
 
     /**
      * @brief   消息处理事件回调（必须实现）
@@ -110,7 +113,8 @@ class FunctionWSServlet : public WSServlet {
      * @param   connect_cb  连接回调
      * @param   close_cb    关闭回调
      */
-    FunctionWSServlet(callback cb, on_connect_cb connect_cb = nullptr, on_close_cb close_cb = nullptr);
+    FunctionWSServlet(callback cb, on_connect_cb connect_cb = nullptr,
+                      on_close_cb close_cb = nullptr);
 
     /**
      * @brief   连接建立事件回调实现
@@ -135,7 +139,8 @@ class FunctionWSServlet : public WSServlet {
      * @param   session  WebSocket会话对象
      * @return  0表示正常，非0将关闭连接
      */
-    int32_t handle(HttpRequest::ptr header, WSFrameMessage::ptr msg, WSSession::ptr session) override;
+    int32_t handle(HttpRequest::ptr header, WSFrameMessage::ptr msg,
+                   WSSession::ptr session) override;
 
    protected:
     callback m_callback;        ///< 消息回调

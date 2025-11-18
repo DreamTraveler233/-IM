@@ -1,6 +1,6 @@
 #include <iostream>
 #include "http_connection.hpp"
-#include "macro.hpp"
+#include "base/macro.hpp"
 #include "iomanager.hpp"
 #include "http_parser.hpp"
 #include "zlib_stream.hpp"

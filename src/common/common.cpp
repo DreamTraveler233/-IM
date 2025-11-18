@@ -2,8 +2,8 @@
 
 #include <jwt-cpp/jwt.h>
 
-#include "config.hpp"
-#include "macro.hpp"
+#include "base/macro.hpp"
+#include "config/config.hpp"
 #include "net/tcp_server.hpp"
 #include "other/crypto_module.hpp"
 #include "util/json_util.hpp"

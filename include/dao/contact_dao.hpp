@@ -66,8 +66,9 @@ class ContactDAO {
                                std::string* err = nullptr);
 
     // 修改联系人备注
-    static bool EditRemark(const uint64_t user_id, const uint64_t contact_id,
-                           const std::string& remark, std::string* err = nullptr);
+    static bool EditRemark(const std::shared_ptr<CIM::MySQL>& db, const uint64_t user_id,
+                           const uint64_t contact_id, const std::string& remark,
+                           std::string* err = nullptr);
 
     // 删除联系人
     static bool DeleteWithConn(const std::shared_ptr<CIM::MySQL>& db, const uint64_t user_id,

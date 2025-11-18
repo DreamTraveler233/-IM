@@ -4,7 +4,7 @@
 #include "util/time_util.hpp"
 
 namespace CIM::dao {
-    
+
 static constexpr const char* kDBName = "default";
 
 bool TalkSessionDAO::getSessionListByUserId(const uint64_t user_id,
@@ -146,7 +146,7 @@ bool TalkSessionDAO::createSession(const std::shared_ptr<CIM::MySQL>& db,
     }
     stmt->bindUint64(11, session.last_ack_seq);
     if (session.last_msg_id.has_value()) {
-        stmt->bindUint64(12, *session.last_msg_id);
+        stmt->bindString(12, *session.last_msg_id);
     } else {
         stmt->bindNull(12);
     }
@@ -184,7 +184,7 @@ bool TalkSessionDAO::createSession(const std::shared_ptr<CIM::MySQL>& db,
 }
 
 bool TalkSessionDAO::bumpOnNewMessage(const std::shared_ptr<CIM::MySQL>& db, const uint64_t talk_id,
-                                      const uint64_t sender_user_id, const uint64_t last_msg_id,
+                                      const uint64_t sender_user_id, const std::string& last_msg_id,
                                       const uint16_t last_msg_type,
                                       const std::string& last_msg_digest, std::string* err) {
     if (!db) {
@@ -201,12 +201,37 @@ bool TalkSessionDAO::bumpOnNewMessage(const std::shared_ptr<CIM::MySQL>& db, con
         if (err) *err = "prepare sql failed";
         return false;
     }
-    stmt->bindUint64(1, last_msg_id);
+    stmt->bindString(1, last_msg_id);
     stmt->bindUint16(2, last_msg_type);
     stmt->bindUint64(3, sender_user_id);
     stmt->bindString(4, last_msg_digest);
     stmt->bindUint64(5, sender_user_id);
     stmt->bindUint64(6, talk_id);
+    if (stmt->execute() != 0) {
+        if (err) *err = stmt->getErrStr();
+        return false;
+    }
+    return true;
+}
+
+bool TalkSessionDAO::EditRemarkWithConn(const std::shared_ptr<CIM::MySQL>& db,
+                                        const uint64_t user_id, const uint64_t to_from_id,
+                                        const std::string& remark, std::string* err) {
+    if (!db) {
+        if (err) *err = "get mysql connection failed";
+        return false;
+    }
+    const char* sql =
+        "UPDATE im_talk_session SET remark = ? WHERE user_id = ? AND to_from_id = ? AND deleted_at "
+        "IS NULL";
+    auto stmt = db->prepare(sql);
+    if (!stmt) {
+        if (err) *err = "prepare sql failed";
+        return false;
+    }
+    stmt->bindString(1, remark);
+    stmt->bindUint64(2, user_id);
+    stmt->bindUint64(3, to_from_id);
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();
         return false;
@@ -307,6 +332,88 @@ bool TalkSessionDAO::clearSessionUnreadNum(const uint64_t user_id, const uint64_
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();
         return false;
+    }
+    return true;
+}
+
+bool TalkSessionDAO::updateLastMsgForUser(const uint64_t user_id, const uint64_t talk_id,
+                                          const std::optional<std::string>& last_msg_id,
+                                          const std::optional<uint16_t>& last_msg_type,
+                                          const std::optional<uint64_t>& last_sender_id,
+                                          const std::optional<std::string>& last_msg_digest,
+                                          std::string* err) {
+    auto db = CIM::MySQLMgr::GetInstance()->get(kDBName);
+    if (!db) {
+        if (err) *err = "get mysql connection failed";
+        return false;
+    }
+
+    const char* sql =
+        "UPDATE im_talk_session SET last_msg_id = ?, last_msg_type = ?, last_sender_id = ?, "
+        "last_msg_digest = ?, updated_at = NOW() "
+        "WHERE user_id = ? AND talk_id = ? AND deleted_at IS NULL";
+    auto stmt = db->prepare(sql);
+    if (!stmt) {
+        if (err) *err = "prepare sql failed";
+        return false;
+    }
+
+    if (last_msg_id.has_value())
+        stmt->bindString(1, *last_msg_id);
+    else
+        stmt->bindNull(1);
+
+    if (last_msg_type.has_value())
+        stmt->bindUint16(2, *last_msg_type);
+    else
+        stmt->bindNull(2);
+
+    if (last_sender_id.has_value())
+        stmt->bindUint64(3, *last_sender_id);
+    else
+        stmt->bindNull(3);
+
+    if (last_msg_digest.has_value())
+        stmt->bindString(4, *last_msg_digest);
+    else
+        stmt->bindNull(4);
+
+    stmt->bindUint64(5, user_id);
+    stmt->bindUint64(6, talk_id);
+
+    if (stmt->execute() != 0) {
+        if (err) *err = stmt->getErrStr();
+        return false;
+    }
+    return true;
+}
+
+bool TalkSessionDAO::listUsersByLastMsg(const uint64_t talk_id, const std::string& last_msg_id,
+                                        std::vector<uint64_t>& out_user_ids,
+                                        std::string* err) {
+    out_user_ids.clear();
+    auto db = CIM::MySQLMgr::GetInstance()->get(kDBName);
+    if (!db) {
+        if (err) *err = "get mysql connection failed";
+        return false;
+    }
+
+    const char* sql =
+        "SELECT user_id FROM im_talk_session WHERE talk_id = ? AND last_msg_id = ? AND deleted_at IS NULL";
+    auto stmt = db->prepare(sql);
+    if (!stmt) {
+        if (err) *err = "prepare sql failed";
+        return false;
+    }
+    stmt->bindUint64(1, talk_id);
+    stmt->bindString(2, last_msg_id);
+    auto res = stmt->query();
+    if (!res) {
+        if (err) *err = "query failed";
+        return false;
+    }
+    while (res->next()) {
+        out_user_ids.push_back(res->getUint64(0));
     }
     return true;
 }

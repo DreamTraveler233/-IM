@@ -1,6 +1,6 @@
-#include "macro.hpp"
+#include "base/macro.hpp"
 #include "util.hpp"
-#include "macro.hpp"
+#include "base/macro.hpp"
 #include <assert.h>
 
 auto g_logger = CIM_LOG_ROOT();

@@ -3,7 +3,7 @@
 #include <mysql/mysql.h>
 
 #include "db/mysql.hpp"
-#include "macro.hpp"
+#include "base/macro.hpp"
 
 namespace CIM::dao {
 

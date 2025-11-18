@@ -1,10 +1,10 @@
 #include "app/auth_service.hpp"
 
 #include "common/common.hpp"
-#include "crypto_module.hpp"
+#include "other/crypto_module.hpp"
 #include "dao/user_auth_dao.hpp"
 #include "db/mysql.hpp"
-#include "macro.hpp"
+#include "base/macro.hpp"
 #include "util/password.hpp"
 #include "util/util.hpp"
 

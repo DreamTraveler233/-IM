@@ -1,6 +1,6 @@
 #include "tcp_server.hpp"
 #include "iomanager.hpp"
-#include "macro.hpp"
+#include "base/macro.hpp"
 
 CIM::Logger::ptr g_logger = CIM_LOG_ROOT();
 
