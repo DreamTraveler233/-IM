@@ -44,8 +44,7 @@ bool ContactDAO::ListByUser(uint64_t user_id, std::vector<ContactItem>& out, std
     return true;
 }
 
-bool ContactDAO::GetByOwnerAndTarget(uint64_t owner_id, uint64_t target_id, ContactDetails& out,
-                                     std::string* err) {
+bool ContactDAO::GetByOwnerAndTarget(uint64_t target_id, ContactDetails& out, std::string* err) {
     auto db = CIM::MySQLMgr::GetInstance()->get(kDBName);
     if (!db) {
         if (err) *err = "get mysql connection failed";
@@ -60,7 +59,7 @@ bool ContactDAO::GetByOwnerAndTarget(uint64_t owner_id, uint64_t target_id, Cont
         if (err) *err = "prepare sql failed";
         return false;
     }
-    stmt->bindUint64(1, owner_id);
+    stmt->bindUint64(1, target_id);
     stmt->bindUint64(2, target_id);
     auto res = stmt->query();
     if (!res) {
@@ -145,7 +144,8 @@ bool ContactDAO::UpsertWithConn(const std::shared_ptr<CIM::MySQL>& db, const Con
         "relation = VALUES(relation), "
         "remark = VALUES(remark), "
         "status = VALUES(status), "
-        "updated_at = NOW()";
+        "updated_at = NOW(), "
+        "deleted_at = VALUES(deleted_at)";
     auto stmt = db->prepare(sql);
     if (!stmt) {
         if (err) *err = "prepare sql failed";
@@ -215,6 +215,33 @@ bool ContactDAO::DeleteWithConn(const std::shared_ptr<CIM::MySQL>& db, const uin
     }
     stmt->bindUint64(1, user_id);
     stmt->bindUint64(2, contact_id);
+    if (stmt->execute() != 0) {
+        if (err) *err = stmt->getErrStr();
+        return false;
+    }
+    return true;
+}
+
+bool ContactDAO::UpdateStatusAndRelationWithConn(const std::shared_ptr<CIM::MySQL>& db,
+                                                 const uint64_t user_id, const uint64_t contact_id,
+                                                 const uint8_t status, const uint8_t relation,
+                                                 std::string* err) {
+    if (!db) {
+        if (err) *err = "get mysql connection failed";
+        return false;
+    }
+    const char* sql =
+        "UPDATE im_contact SET status = ?, relation = ? WHERE friend_user_id = ? AND owner_user_id "
+        "= ?";
+    auto stmt = db->prepare(sql);
+    if (!stmt) {
+        if (err) *err = "prepare sql failed";
+        return false;
+    }
+    stmt->bindUint8(1, status);
+    stmt->bindUint8(2, relation);
+    stmt->bindUint64(3, contact_id);
+    stmt->bindUint64(4, user_id);
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();
         return false;

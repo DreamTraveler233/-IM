@@ -405,6 +405,7 @@ CREATE TABLE IF NOT EXISTS `im_message` (
   `extra` JSON NULL COMMENT '扩展内容：各类型专属字段',
   `quote_msg_id` CHAR(32) NULL COMMENT '被引用消息ID（用于回复/引用）',
   `is_revoked` TINYINT NOT NULL DEFAULT 2 COMMENT '撤回状态: 1=已撤回 2=正常',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '发送状态: 1=成功 2=发送中 3=失败',
   `revoke_by` BIGINT UNSIGNED NULL COMMENT '撤回操作人用户ID（可为空）',
   `revoke_time` DATETIME NULL COMMENT '撤回时间',
   `created_at` DATETIME NOT NULL COMMENT '发送时间（创建时间）',

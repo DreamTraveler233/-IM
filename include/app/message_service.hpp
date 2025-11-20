@@ -42,6 +42,10 @@ class MessageService {
                                        const uint8_t talk_mode,
                                        const uint64_t to_from_id);
 
+    // 清空聊天记录（软删除，将消息插入删除表中）
+    static VoidResult ClearTalkRecords(const uint64_t current_user_id, const uint8_t talk_mode,
+                                       const uint64_t to_from_id);
+
     // 撤回消息（仅发送者可撤回，后续可扩展管理员权限）。
     static VoidResult RevokeMessage(const uint64_t current_user_id, const uint8_t talk_mode,
                                     const uint64_t to_from_id, const std::string& msg_id);
@@ -61,6 +65,11 @@ class MessageService {
                                            const std::string& quote_msg_id,
                                            const std::string& msg_id,
                                            const std::vector<uint64_t>& mentioned_user_ids);
+
+   // 更新消息状态（通常由发送方请求，或服务器端发生发送失败时标记）
+   static VoidResult UpdateMessageStatus(const uint64_t current_user_id, const uint8_t talk_mode,
+                                const uint64_t to_from_id, const std::string& msg_id,
+                                uint8_t status);
 
    private:
     // 根据 talk_mode 与对象ID 获取会话 talk_id（不存在返回 0）。

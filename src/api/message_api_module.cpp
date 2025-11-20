@@ -115,6 +115,7 @@ bool MessageApiModule::onServerReady() {
                 it["nickname"] = r.nickname;
                 it["avatar"] = r.avatar;
                 it["is_revoked"] = r.is_revoked;
+                it["status"] = r.status;
                 it["send_time"] = r.send_time;
                 it["extra"] = r.extra;
                 it["quote"] = r.quote;
@@ -167,6 +168,7 @@ bool MessageApiModule::onServerReady() {
                                      it["nickname"] = r.nickname;
                                      it["avatar"] = r.avatar;
                                      it["is_revoked"] = r.is_revoked;
+                                    it["status"] = r.status;
                                      it["send_time"] = r.send_time;
                                      it["extra"] = r.extra;
                                      it["quote"] = r.quote;
@@ -222,6 +224,7 @@ bool MessageApiModule::onServerReady() {
                                      it["nickname"] = r.nickname;
                                      it["avatar"] = r.avatar;
                                      it["is_revoked"] = r.is_revoked;
+                                    it["status"] = r.status;
                                      it["send_time"] = r.send_time;
                                      it["extra"] = r.extra;
                                      it["quote"] = r.quote;
@@ -508,12 +511,46 @@ bool MessageApiModule::onServerReady() {
             root["nickname"] = r.nickname;
             root["avatar"] = r.avatar;
             root["is_revoked"] = r.is_revoked;
+            root["status"] = r.status;
             root["send_time"] = r.send_time;
             root["extra"] = r.extra;
             root["quote"] = r.quote;
             res->setBody(Ok(root));
             return 0;
         });
+
+        // 更新消息状态（sender 更新发送状态，如标记失败/成功）
+        dispatch->addServlet("/api/v1/message/status",
+                             [](CIM::http::HttpRequest::ptr req, CIM::http::HttpResponse::ptr res,
+                                CIM::http::HttpSession::ptr) {
+                                 res->setHeader("Content-Type", "application/json");
+                                 Json::Value body;
+                                 uint8_t talk_mode = 0;
+                                 uint64_t to_from_id = 0;
+                                 std::string msg_id;
+                                 uint8_t status = 1;
+                                 if (ParseBody(req->getBody(), body)) {
+                                     talk_mode = CIM::JsonUtil::GetUint8(body, "talk_mode");
+                                     to_from_id = CIM::JsonUtil::GetUint64(body, "to_from_id");
+                                     msg_id = CIM::JsonUtil::GetString(body, "msg_id");
+                                     status = CIM::JsonUtil::GetUint8(body, "status");
+                                 }
+                                 auto uid_ret = GetUidFromToken(req, res);
+                                 if (!uid_ret.ok) {
+                                     res->setStatus(ToHttpStatus(uid_ret.code));
+                                     res->setBody(Error(uid_ret.code, uid_ret.err));
+                                     return 0;
+                                 }
+                                 auto svc_ret = CIM::app::MessageService::UpdateMessageStatus(
+                                     uid_ret.data, talk_mode, to_from_id, msg_id, status);
+                                 if (!svc_ret.ok) {
+                                     res->setStatus(ToHttpStatus(svc_ret.code));
+                                     res->setBody(Error(svc_ret.code, svc_ret.err));
+                                     return 0;
+                                 }
+                                 res->setBody(Ok());
+                                 return 0;
+                             });
     }
     return true;
 }

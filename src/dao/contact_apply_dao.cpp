@@ -73,6 +73,16 @@ bool ContactApplyDAO::GetDetailByIdWithConn(const std::shared_ptr<CIM::MySQL>& d
     return true;
 }
 
+bool ContactApplyDAO::GetDetailById(const uint64_t apply_id, ContactApply& out,
+                                    std::string* err) {
+    auto db = CIM::MySQLMgr::GetInstance()->get(kDBName);
+    if (!db) {
+        if (err) *err = "get mysql connection failed";
+        return false;
+    }
+    return GetDetailByIdWithConn(db, apply_id, out, err);
+}
+
 bool ContactApplyDAO::Create(const ContactApply& a, std::string* err) {
     auto db = CIM::MySQLMgr::GetInstance()->get(kDBName);
     if (!db) {

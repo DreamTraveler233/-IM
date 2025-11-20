@@ -65,6 +65,7 @@ bool MessageService::buildRecord(const CIM::dao::Message& msg, CIM::dao::Message
     out.msg_type = msg.msg_type;
     out.from_id = msg.sender_id;
     out.is_revoked = msg.is_revoked;
+    out.status = msg.status;
     out.send_time = TimeUtil::TimeToStr(msg.created_at);
     out.extra = msg.extra;  // 原样透传 JSON 字符串
     out.quote = "{}";
@@ -507,6 +508,69 @@ VoidResult MessageService::DeleteAllMessagesInTalkForUser(const uint64_t current
     return result;
 }
 
+VoidResult MessageService::ClearTalkRecords(const uint64_t current_user_id, const uint8_t talk_mode,
+                                            const uint64_t to_from_id) {
+    VoidResult result;
+    std::string err;
+
+    // 1. 开启事务
+    auto trans = CIM::MySQLMgr::GetInstance()->openTransaction(kDBName, false);
+    if (!trans) {
+        result.code = 500;
+        result.err = "数据库事务创建失败";
+        return result;
+    }
+    auto db = trans->getMySQL();
+
+    // 2. 获取 talk_id
+    uint64_t talk_id = 0;
+    if (!GetTalkId(current_user_id, talk_mode, to_from_id, talk_id, err)) {
+        if (err == "非法会话类型") {
+            result.code = 400;
+            result.err = err;
+            return result;
+        }
+        // 会话不存在，无需删除
+        result.ok = true;
+        return result;
+    }
+
+    // 3. 软删除消息（仅对当前用户不可见）
+    if (!CIM::dao::MessageUserDeleteDao::MarkAllMessagesDeletedByUserInTalk(
+            db, talk_id, current_user_id, &err)) {
+        trans->rollback();
+        result.code = 500;
+        result.err = "删除消息失败";
+        return result;
+    }
+
+    // 4. 清空当前用户的会话最后消息
+    if (!CIM::dao::TalkSessionDAO::updateLastMsgForUser(
+            db, current_user_id, talk_id, std::optional<std::string>(), std::optional<uint16_t>(),
+            std::optional<uint64_t>(), std::optional<std::string>(), &err)) {
+        CIM_LOG_WARN(g_logger) << "ClearTalkRecords updateLastMsgForUser failed uid="
+                               << current_user_id;
+    }
+
+    // 推送更新给当前用户
+    Json::Value payload;
+    payload["talk_mode"] = talk_mode;
+    payload["to_from_id"] = to_from_id;
+    payload["msg_text"] = Json::Value();
+    payload["updated_at"] = CIM::TimeUtil::NowToMS();
+    CIM::api::WsGatewayModule::PushToUser(current_user_id, "im.session.update", payload);
+
+    if (!trans->commit()) {
+        trans->rollback();
+        result.code = 500;
+        result.err = "事务提交失败";
+        return result;
+    }
+
+    result.ok = true;
+    return result;
+}
+
 VoidResult MessageService::RevokeMessage(const uint64_t current_user_id, const uint8_t talk_mode,
                                          const uint64_t to_from_id, const std::string& msg_id) {
     VoidResult result;
@@ -706,6 +770,84 @@ VoidResult MessageService::RevokeMessage(const uint64_t current_user_id, const u
     return result;
 }
 
+VoidResult MessageService::UpdateMessageStatus(const uint64_t current_user_id,
+                                               const uint8_t talk_mode, const uint64_t to_from_id,
+                                               const std::string& msg_id, uint8_t status) {
+    VoidResult result;
+    std::string err;
+    // 1. 加载消息
+    CIM::dao::Message m;
+    if (!CIM::dao::MessageDao::GetById(msg_id, m, &err)) {
+        if (!err.empty()) {
+            result.code = 500;
+            result.err = "消息加载失败";
+            return result;
+        }
+        result.ok = true;
+        return result;
+    }
+
+    // 权限校验：只有消息发送者可更新发送状态
+    if (m.sender_id != current_user_id) {
+        result.code = 403;
+        result.err = "无权限更新消息状态";
+        return result;
+    }
+
+    // 更新 status
+    auto trans = CIM::MySQLMgr::GetInstance()->openTransaction(kDBName, false);
+    if (!trans) {
+        result.code = 500;
+        result.err = "数据库事务创建失败";
+        return result;
+    }
+    auto db = trans->getMySQL();
+    if (!db) {
+        result.code = 500;
+        result.err = "数据库连接失败";
+        return result;
+    }
+    if (!CIM::dao::MessageDao::SetStatus(db, msg_id, status, &err)) {
+        trans->rollback();
+        result.code = 500;
+        result.err = "更新状态失败";
+        return result;
+    }
+    if (!trans->commit()) {
+        trans->rollback();
+        result.code = 500;
+        result.err = "事务提交失败";
+        return result;
+    }
+
+    // 广播状态更新事件给会话内在线用户
+    try {
+        CIM::dao::Message mm;
+        std::string merr;
+        if (CIM::dao::MessageDao::GetById(msg_id, mm, &merr)) {
+            Json::Value ev;
+            ev["talk_mode"] = mm.talk_mode;
+            if (mm.talk_mode == 1) {
+                ev["to_from_id"] = (Json::UInt64)mm.receiver_id;
+            } else {
+                ev["to_from_id"] = (Json::UInt64)mm.group_id;
+            }
+            ev["msg_id"] = msg_id;
+            ev["status"] = (Json::UInt)status;
+            std::vector<uint64_t> talk_users;
+            std::string lerr;
+            if (CIM::dao::TalkSessionDAO::listUsersByTalkId(mm.talk_id, talk_users, &lerr)) {
+                for (auto uid : talk_users) {
+                    CIM::api::WsGatewayModule::PushToUser(uid, "im.message.update", ev);
+                }
+            }
+        }
+    } catch (...) {
+    }
+    result.ok = true;
+    return result;
+}
+
 MessageRecordResult MessageService::SendMessage(
     const uint64_t current_user_id, const uint8_t talk_mode, const uint64_t to_from_id,
     const uint16_t msg_type, const std::string& content_text, const std::string& extra,
@@ -764,6 +906,29 @@ MessageRecordResult MessageService::SendMessage(
         return result;
     }
 
+    // ==== 好友关系校验（仅单聊）====
+    bool deliver_to_receiver = true;    // 是否投递给接收者
+    bool mark_invalid_message = false;  // 是否标记为失效（对方已删除我）
+    if (talk_mode == 1) {
+        CIM::dao::ContactDetails receiver_view;
+        // 查询接收者视角下是否仍是好友：owner=接收者, friend=发送者
+        if (!CIM::dao::ContactDAO::GetByOwnerAndTargetWithConn(db, to_from_id, current_user_id,
+                                                               receiver_view, &err) ||
+            receiver_view.relation == 1) {
+            if (!err.empty()) {
+                trans->rollback();
+                CIM_LOG_ERROR(g_logger)
+                    << "SendMessage ContactDAO::GetByOwnerAndTargetWithConn failed, err=" << err;
+                result.code = 500;
+                result.err = "好友关系校验失败";
+                return result;
+            }
+            // 接收者没有我，或关系不是好友 -> 不投递, 对我可见且标记 invalid
+            deliver_to_receiver = false;
+            mark_invalid_message = true;
+        }
+    }
+
     // 4. 计算 sequence
     uint64_t next_seq = 0;
     if (!CIM::dao::TalkSequenceDao::nextSeq(db, talk_id, next_seq, &err)) {
@@ -796,6 +961,29 @@ MessageRecordResult MessageService::SendMessage(
     }
     m.content_text = content_text;  // 文本类存这里，其它类型留空
     m.extra = extra;                // 非文本 JSON 或补充字段
+    // 若因对方不是好友导致的“失效消息”，持久化 extra.invalid 到数据库
+    if (mark_invalid_message) {
+        m.status = 3;  // failed due to invalid recipient
+        try {
+            Json::Value extraRoot;
+            if (!m.extra.empty()) {
+                Json::CharReaderBuilder rbd;
+                std::string errs;
+                std::istringstream in(m.extra);
+                if (!Json::parseFromStream(rbd, in, &extraRoot, &errs)) {
+                    extraRoot = Json::objectValue;
+                }
+            } else {
+                extraRoot = Json::objectValue;
+            }
+            extraRoot["invalid"] = true;
+            extraRoot["invalid_reason"] = "not_friend";
+            Json::StreamWriterBuilder wbd;
+            m.extra = Json::writeString(wbd, extraRoot);
+        } catch (...) {
+            // ignore
+        }
+    }
     // 若为转发：在服务器端补充 preview records（方便前端短缩显示）
     if (m.msg_type == static_cast<uint16_t>(CIM::common::MessageType::Forward) &&
         !m.extra.empty()) {
@@ -949,41 +1137,49 @@ MessageRecordResult MessageService::SendMessage(
     if (talk_mode == 1) {
         // 为接收方创建/恢复会话视图（以便对端也能在会话列表中看到消息）
         try {
-            CIM::dao::ContactDetails cd;
-            std::string cerr;
-            // 不要因为 contact 查不到就退出：会话的 name/avatar 只是用于展示
-            (void)CIM::dao::ContactDAO::GetByOwnerAndTargetWithConn(db, m.receiver_id,
-                                                                    current_user_id, cd, &cerr);
-            CIM::dao::TalkSession session;
-            session.user_id = m.receiver_id;  // 接收者
-            session.talk_id = talk_id;
-            session.to_from_id = current_user_id;  // 会话视图中的对象（发送者）
-            session.talk_mode = 1;
-            if (!cd.nickname.empty()) session.name = cd.nickname;
-            if (!cd.avatar.empty()) session.avatar = cd.avatar;
-            if (!cd.contact_remark.empty()) session.remark = cd.contact_remark;
-
-            std::string sErr;
-            if (!CIM::dao::TalkSessionDAO::createSession(db, session, &sErr)) {
-                // 记录日志但不阻塞发送：创建会话失败也不影响消息写入
-                CIM_LOG_WARN(g_logger) << "createSession for receiver failed: " << sErr;
+            // 始终保证发送者侧会话存在
+            CIM::dao::ContactDetails cd_sender;
+            std::string cerr_sender;
+            (void)CIM::dao::ContactDAO::GetByOwnerAndTargetWithConn(
+                db, current_user_id, m.receiver_id, cd_sender, &cerr_sender);
+            CIM::dao::TalkSession session_sender;
+            session_sender.user_id = current_user_id;
+            session_sender.talk_id = talk_id;
+            session_sender.to_from_id = m.receiver_id;
+            session_sender.talk_mode = 1;
+            if (!cd_sender.nickname.empty()) {
+                session_sender.name = cd_sender.nickname;
             }
-            // 同时为发送者创建/恢复会话视图（当前用户），保证发送方在会话列表可见
-            CIM::dao::ContactDetails cd2;
-            std::string cerr2;
-            (void)CIM::dao::ContactDAO::GetByOwnerAndTargetWithConn(db, current_user_id,
-                                                                    m.receiver_id, cd2, &cerr2);
-            CIM::dao::TalkSession session2;
-            session2.user_id = current_user_id;
-            session2.talk_id = talk_id;
-            session2.to_from_id = m.receiver_id;
-            session2.talk_mode = 1;
-            if (!cd2.nickname.empty()) session2.name = cd2.nickname;
-            if (!cd2.avatar.empty()) session2.avatar = cd2.avatar;
-            if (!cd2.contact_remark.empty()) session2.remark = cd2.contact_remark;
-            std::string sErr2;
-            if (!CIM::dao::TalkSessionDAO::createSession(db, session2, &sErr2)) {
-                CIM_LOG_WARN(g_logger) << "createSession for sender failed: " << sErr2;
+            if (!cd_sender.avatar.empty()) {
+                session_sender.avatar = cd_sender.avatar;
+            }
+            if (!cd_sender.contact_remark.empty()) {
+                session_sender.remark = cd_sender.contact_remark;
+            }
+            std::string sErrSender;
+            if (!CIM::dao::TalkSessionDAO::createSession(db, session_sender, &sErrSender)) {
+                CIM_LOG_WARN(g_logger) << "createSession for sender failed: " << sErrSender;
+            }
+
+            // 仅当允许投递给接收者时才创建接收者侧会话
+            if (deliver_to_receiver) {
+                CIM::dao::ContactDetails cd_receiver;
+                std::string cerr_receiver;
+                (void)CIM::dao::ContactDAO::GetByOwnerAndTargetWithConn(
+                    db, m.receiver_id, current_user_id, cd_receiver, &cerr_receiver);
+                CIM::dao::TalkSession session_receiver;
+                session_receiver.user_id = m.receiver_id;  // 接收者
+                session_receiver.talk_id = talk_id;
+                session_receiver.to_from_id = current_user_id;
+                session_receiver.talk_mode = 1;
+                if (!cd_receiver.nickname.empty()) session_receiver.name = cd_receiver.nickname;
+                if (!cd_receiver.avatar.empty()) session_receiver.avatar = cd_receiver.avatar;
+                if (!cd_receiver.contact_remark.empty())
+                    session_receiver.remark = cd_receiver.contact_remark;
+                std::string sErrReceiver;
+                if (!CIM::dao::TalkSessionDAO::createSession(db, session_receiver, &sErrReceiver)) {
+                    CIM_LOG_WARN(g_logger) << "createSession for receiver failed: " << sErrReceiver;
+                }
             }
         } catch (const std::exception& ex) {
             CIM_LOG_WARN(g_logger) << "createSession exception: " << ex.what();
@@ -1002,6 +1198,28 @@ MessageRecordResult MessageService::SendMessage(
         }
     }
 
+    if (mark_invalid_message) {
+        // 对接收者做用户侧删除标记，保证接收者看不到该消息
+        if (!CIM::dao::MessageUserDeleteDao::MarkUserDelete(db, m.id, to_from_id, &err)) {
+            if (!err.empty()) {
+                trans->rollback();
+                CIM_LOG_ERROR(g_logger) << "MarkUserDelete (invalid message) failed: " << err;
+                result.code = 500;
+                result.err = "发送失败";
+                return result;
+            }
+        }
+        // 为发送者设置会话最后一条为“发送失败”（仅影响发送者视图）
+        std::string sErr;
+        if (!CIM::dao::TalkSessionDAO::updateLastMsgForUser(
+                db, current_user_id, talk_id, std::optional<std::string>(m.id),
+                std::optional<uint16_t>(m.msg_type), std::optional<uint64_t>(m.sender_id),
+                std::optional<std::string>("发送失败"), &sErr)) {
+            CIM_LOG_WARN(g_logger) << "updateLastMsgForUser failed for invalid message: " << sErr;
+            // 非关键操作：不回滚发送，仅记录日志
+        }
+    }
+
     // 通知客户端更新会话预览：单聊推送给接收方，群聊推送给群中会话存在的所有用户
     {
         Json::Value payload;
@@ -1009,12 +1227,20 @@ MessageRecordResult MessageService::SendMessage(
         payload["to_from_id"] = to_from_id;
         payload["sender_id"] = (Json::UInt64)current_user_id;
         payload["msg_text"] = last_msg_digest;
+        if (mark_invalid_message) {
+            payload["invalid"] = true;
+            // 当消息无效时，发送者会话预览显示失败文本
+            payload["msg_text"] = "发送失败";
+        }
         payload["updated_at"] = (Json::UInt64)CIM::TimeUtil::NowToMS();
 
         if (talk_mode == 1) {
-            // 单聊：不再在服务端做 ID 交换，统一推送标准 payload
-            // 前端根据 (talk_mode=1 && to_from_id == my_uid) ? sender_id : to_from_id 来判断会话索引
-            CIM::api::WsGatewayModule::PushToUser(to_from_id, "im.session.update", payload);
+            // 单聊：仅在可投递时才通知接收者刷新会话
+            if (deliver_to_receiver) {
+                CIM::api::WsGatewayModule::PushToUser(to_from_id, "im.session.update", payload);
+            }
+            // Always push to sender (including invalid message case). For invalid messages the payload
+            // is updated to indicate invalid and msg_text set to failure message.
             CIM::api::WsGatewayModule::PushToUser(current_user_id, "im.session.update", payload);
         } else {
             // 群聊：查出本群拥有会话快照的用户，并逐个推送
@@ -1039,10 +1265,46 @@ MessageRecordResult MessageService::SendMessage(
     }
 
     // 构建返回记录（补充昵称头像与引用信息）
-    // 说明：SendMessage 返回的 MessageRecord 已经包裹好前端需要的字段：msg_id/sequence/msg_type/from_id/nickname/avatar/is_revoked/send_time/extra/quote
+    // 注意：db 插入时使用了 NOW()，需要重新从数据库加载消息以获取正确的 created_at
+    // 否则 buildRecord 会使用 m.created_at (默认 0)，导致 send_time 为 epoch（1970）
+    {
+        std::string rerr;
+        CIM::dao::Message m2;
+        if (CIM::dao::MessageDao::GetById(m.id, m2, &rerr)) {
+            m = std::move(m2);
+        } else {
+            CIM_LOG_WARN(g_logger) << "GetById after insert failed for msg_id=" << m.id
+                                   << ", err=" << rerr << "; fallback to server time";
+            m.created_at = static_cast<time_t>(CIM::TimeUtil::NowToS());
+        }
+    }
+    // 说明：SendMessage 返回的 MessageRecord 已经包裹好前端需要的字段：msg_id/sequence/msg_type/from_id/nickname/avatar/is_revoked/status/send_time/extra/quote
     // 前端可以直接把这个对象渲染为会话一条消息，不需要额外的网路请求。
     CIM::dao::MessageRecord rec;
     buildRecord(m, rec, &err);
+
+    // 为失效消息补充 invalid 标记到 rec.extra，保证 REST 响应也携带该信息
+    if (mark_invalid_message) {
+        try {
+            Json::Value extraRoot;
+            if (!rec.extra.empty()) {
+                Json::CharReaderBuilder rb2;
+                std::string errs2;
+                std::istringstream in2(rec.extra);
+                if (!Json::parseFromStream(rb2, in2, &extraRoot, &errs2)) {
+                    extraRoot = Json::objectValue;
+                }
+            } else {
+                extraRoot = Json::objectValue;
+            }
+            extraRoot["invalid"] = true;
+            extraRoot["invalid_reason"] = "not_friend";
+            Json::StreamWriterBuilder wb2;
+            rec.extra = Json::writeString(wb2, extraRoot);
+        } catch (...) {
+            // 忽略解析错误，保持原样
+        }
+    }
 
     // 主动推送给对端（以及发送者其它设备），前端监听事件: im.message
     // 说明：PushImMessage 将把消息广播到对应频道（单聊/群），并且以同一结构发送
@@ -1056,10 +1318,39 @@ MessageRecordResult MessageService::SendMessage(
     body_json["avatar"] = rec.avatar;
     body_json["is_revoked"] = rec.is_revoked;
     body_json["send_time"] = rec.send_time;
-    body_json["extra"] = rec.extra;
+
+    // 为失效消息在 extra 中插入标记（JSON 字符串需解析再写回）
+    try {
+        Json::Value extraRoot;
+        Json::CharReaderBuilder rb;
+        std::string errs;
+        std::istringstream in(rec.extra);
+        if (!rec.extra.empty() && Json::parseFromStream(rb, in, &extraRoot, &errs)) {
+            if (mark_invalid_message) {
+                extraRoot["invalid"] = true;
+                extraRoot["invalid_reason"] = "not_friend";
+            }
+        } else if (mark_invalid_message) {
+            extraRoot["invalid"] = true;
+            extraRoot["invalid_reason"] = "not_friend";
+        }
+        Json::StreamWriterBuilder wb;
+        body_json["extra"] = Json::writeString(wb, extraRoot);
+    } catch (...) {
+        body_json["extra"] = rec.extra;  // 回退
+    }
+    body_json["status"] = (Json::UInt)rec.status;
     body_json["quote"] = rec.quote;
 
-    CIM::api::WsGatewayModule::PushImMessage(talk_mode, to_from_id, rec.from_id, body_json);
+    // 单聊仅在允许投递时才发送给接收者
+    if (talk_mode == 1) {
+        if (deliver_to_receiver) {
+            // 正常投递
+            CIM::api::WsGatewayModule::PushImMessage(talk_mode, to_from_id, rec.from_id, body_json);
+        }
+    } else {
+        CIM::api::WsGatewayModule::PushImMessage(talk_mode, to_from_id, rec.from_id, body_json);
+    }
 
     result.data = std::move(rec);
     result.ok = true;

@@ -1,11 +1,14 @@
 #include "api/contact_api_module.hpp"
 
+#include "api/ws_gateway_module.hpp"
 #include "app/contact_service.hpp"
+#include "app/talk_service.hpp"
 #include "app/user_service.hpp"
+#include "base/macro.hpp"
 #include "common/common.hpp"
+#include "dao/contact_apply_dao.hpp"
 #include "http/http_server.hpp"
 #include "http/http_servlet.hpp"
-#include "base/macro.hpp"
 #include "system/application.hpp"
 #include "util/util.hpp"
 
@@ -48,16 +51,33 @@ bool ContactApiModule::onServerReady() {
                                      return 0;
                                  }
 
-                                 /*调用业务逻辑处理接受好友申请*/
-                                 auto result = CIM::app::ContactService::AgreeApply(
+                                 /*调用业务逻辑处理接受好友申请（服务端已创建会话并返回）*/
+                                 auto session_result = CIM::app::ContactService::AgreeApply(
                                      uid_result.data, apply_id, remark);
-                                 if (!result.ok) {
-                                     res->setStatus(ToHttpStatus(result.code));
-                                     res->setBody(Error(result.code, result.err));
+                                 if (!session_result.ok) {
+                                     res->setStatus(ToHttpStatus(session_result.code));
+                                     res->setBody(Error(session_result.code, session_result.err));
                                      return 0;
                                  }
 
-                                 res->setBody(Ok());
+                                 Json::Value d;
+                                 if (session_result.data.id != 0) {
+                                     Json::Value s;
+                                     s["id"] = (Json::UInt64)session_result.data.id;
+                                     s["talk_mode"] = (int)session_result.data.talk_mode;
+                                     s["to_from_id"] = (Json::UInt64)session_result.data.to_from_id;
+                                     s["is_top"] = (int)session_result.data.is_top;
+                                     s["is_disturb"] = (int)session_result.data.is_disturb;
+                                     s["is_robot"] = (int)session_result.data.is_robot;
+                                     s["name"] = session_result.data.name;
+                                     s["avatar"] = session_result.data.avatar;
+                                     s["remark"] = session_result.data.remark;
+                                     s["unread_num"] = (int)session_result.data.unread_num;
+                                     s["msg_text"] = session_result.data.msg_text;
+                                     s["updated_at"] = session_result.data.updated_at;
+                                     d["session"] = s;
+                                 }
+                                 res->setBody(Ok(d));
                                  return 0;
                              });
 
@@ -355,7 +375,7 @@ bool ContactApiModule::onServerReady() {
                 return 0;
             }
 
-            auto result = CIM::app::ContactService::GetContactDetail(uid_result.data, target_id);
+            auto result = CIM::app::ContactService::GetContactDetail(target_id);
             if (!result.ok) {
                 res->setStatus(ToHttpStatus(result.code));
                 res->setBody(Error(result.code, result.err));

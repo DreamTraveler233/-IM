@@ -13,7 +13,7 @@ namespace {
 // 统一列选择片段
 static const char* kSelectCols =
     "id,talk_id,sequence,talk_mode,msg_type,sender_id,receiver_id,group_id,content_text,extra,"
-    "quote_msg_id,is_revoked,revoke_by,revoke_time,created_at,updated_at";
+    "quote_msg_id,is_revoked,status,revoke_by,revoke_time,created_at,updated_at";
 }  // namespace
 
 bool MessageDao::Create(const std::shared_ptr<CIM::MySQL>& db, const Message& m, std::string* err) {
@@ -25,8 +25,8 @@ bool MessageDao::Create(const std::shared_ptr<CIM::MySQL>& db, const Message& m,
     const char* sql =
         "INSERT INTO im_message "
         "(id,talk_id,sequence,talk_mode,msg_type,sender_id,receiver_id,group_id,"  // 9
-        "content_text,extra,quote_msg_id,is_revoked,revoke_by,revoke_time,created_at,updated_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())";
+        "content_text,extra,quote_msg_id,is_revoked,status,revoke_by,revoke_time,created_at,updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())";
     auto stmt = db->prepare(sql);
     if (!stmt) {
         if (err) *err = "prepare sql failed";
@@ -59,14 +59,16 @@ bool MessageDao::Create(const std::shared_ptr<CIM::MySQL>& db, const Message& m,
     else
         stmt->bindNull(11);
     stmt->bindInt8(12, m.is_revoked);
+        // status: inserted value
+        stmt->bindInt8(13, m.status);
     if (m.revoke_by)
-        stmt->bindUint64(13, m.revoke_by);
-    else
-        stmt->bindNull(13);
-    if (m.revoke_time)
-        stmt->bindTime(14, m.revoke_time);
+        stmt->bindUint64(14, m.revoke_by);
     else
         stmt->bindNull(14);
+    if (m.revoke_time)
+        stmt->bindTime(15, m.revoke_time);
+    else
+        stmt->bindNull(15);
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();
         return false;
@@ -115,10 +117,11 @@ bool MessageDao::GetById(const std::string& msg_id, Message& out, std::string* e
     out.extra = res->isNull(9) ? std::string() : res->getString(9);
     out.quote_msg_id = res->isNull(10) ? std::string() : res->getString(10);
     out.is_revoked = res->getUint8(11);
-    out.revoke_by = res->isNull(12) ? 0 : res->getUint64(12);
-    out.revoke_time = res->isNull(13) ? 0 : res->getTime(13);
-    out.created_at = res->getTime(14);
-    out.updated_at = res->getTime(15);
+    out.status = res->getUint8(12);
+    out.revoke_by = res->isNull(13) ? 0 : res->getUint64(13);
+    out.revoke_time = res->isNull(14) ? 0 : res->getTime(14);
+    out.created_at = res->getTime(15);
+    out.updated_at = res->getTime(16);
 
     return true;
 }
@@ -131,9 +134,9 @@ bool MessageDao::ListRecentDesc(const uint64_t talk_id, const uint64_t anchor_se
         return false;
     }
     std::ostringstream oss;
-    oss << "SELECT id, talk_id, sequence, talk_mode, msg_type, sender_id, receiver_id, group_id, "
-           "content_text, extra, quote_msg_id, is_revoked, revoke_by, revoke_time, created_at, "
-           "updated_at FROM im_message WHERE talk_id=?";
+        oss << "SELECT id, talk_id, sequence, talk_mode, msg_type, sender_id, receiver_id, group_id, "
+            "content_text, extra, quote_msg_id, is_revoked, status, revoke_by, revoke_time, created_at, "
+            "updated_at FROM im_message WHERE talk_id=?";
     // cursor 表示“从比它更早的消息开始翻页”
     if (anchor_seq > 0) {
         oss << " AND sequence<?";
@@ -176,10 +179,11 @@ bool MessageDao::ListRecentDesc(const uint64_t talk_id, const uint64_t anchor_se
         m.extra = res->isNull(9) ? std::string() : res->getString(9);
         m.quote_msg_id = res->isNull(10) ? std::string() : res->getString(10);
         m.is_revoked = res->getUint8(11);
-        m.revoke_by = res->isNull(12) ? 0 : res->getUint64(12);
-        m.revoke_time = res->isNull(13) ? 0 : res->getTime(13);
-        m.created_at = res->getTime(14);
-        m.updated_at = res->getTime(15);
+        m.status = res->getUint8(12);
+        m.revoke_by = res->isNull(13) ? 0 : res->getUint64(13);
+        m.revoke_time = res->isNull(14) ? 0 : res->getTime(14);
+        m.created_at = res->getTime(15);
+        m.updated_at = res->getTime(16);
         out.push_back(std::move(m));
     }
 
@@ -256,10 +260,11 @@ bool MessageDao::ListRecentDescWithFilter(const std::shared_ptr<CIM::MySQL>& db,
         m.extra = res->isNull(9) ? std::string() : res->getString(9);
         m.quote_msg_id = res->isNull(10) ? std::string() : res->getString(10);
         m.is_revoked = res->getUint8(11);
-        m.revoke_by = res->isNull(12) ? 0 : res->getUint64(12);
-        m.revoke_time = res->isNull(13) ? 0 : res->getTime(13);
-        m.created_at = res->getTime(14);
-        m.updated_at = res->getTime(15);
+        m.status = res->getUint8(12);
+        m.revoke_by = res->isNull(13) ? 0 : res->getUint64(13);
+        m.revoke_time = res->isNull(14) ? 0 : res->getTime(14);
+        m.created_at = res->getTime(15);
+        m.updated_at = res->getTime(16);
         out.push_back(std::move(m));
     }
     return true;
@@ -439,10 +444,11 @@ bool MessageDao::ListAfterAsc(const uint64_t talk_id, const uint64_t after_seq, 
         m.extra = res->isNull(9) ? std::string() : res->getString(9);
         m.quote_msg_id = res->isNull(10) ? std::string() : res->getString(10);
         m.is_revoked = static_cast<uint8_t>(res->getInt8(11));
-        m.revoke_by = res->isNull(12) ? 0 : res->getUint64(12);
-        m.revoke_time = res->isNull(13) ? 0 : res->getTime(13);
-        m.created_at = res->getTime(14);
-        m.updated_at = res->getTime(15);
+        m.status = static_cast<uint8_t>(res->getInt8(12));
+        m.revoke_by = res->isNull(13) ? 0 : res->getUint64(13);
+        m.revoke_time = res->isNull(14) ? 0 : res->getTime(14);
+        m.created_at = res->getTime(15);
+        m.updated_at = res->getTime(16);
         out.push_back(std::move(m));
     }
     return true;
@@ -469,6 +475,47 @@ bool MessageDao::Revoke(const std::shared_ptr<CIM::MySQL>& db, const std::string
         return false;
     }
     return true;  // 不强制校验影响行数；由上层根据业务判断是否成功撤回
+}
+
+bool MessageDao::DeleteByTalkId(const std::shared_ptr<CIM::MySQL>& db, const uint64_t talk_id,
+                                std::string* err) {
+    if (!db) {
+        if (err) *err = "get mysql connection failed";
+        return false;
+    }
+    const char* sql = "DELETE FROM im_message WHERE talk_id=?";
+    auto stmt = db->prepare(sql);
+    if (!stmt) {
+        if (err) *err = "prepare sql failed";
+        return false;
+    }
+    stmt->bindUint64(1, talk_id);
+    if (stmt->execute() != 0) {
+        if (err) *err = stmt->getErrStr();
+        return false;
+    }
+    return true;
+}
+
+bool MessageDao::SetStatus(const std::shared_ptr<CIM::MySQL>& db, const std::string& msg_id,
+                           uint8_t status, std::string* err) {
+    if (!db) {
+        if (err) *err = "get mysql connection failed";
+        return false;
+    }
+    const char* sql = "UPDATE im_message SET status=?, updated_at=NOW() WHERE id=?";
+    auto stmt = db->prepare(sql);
+    if (!stmt) {
+        if (err) *err = "prepare sql failed";
+        return false;
+    }
+    stmt->bindInt8(1, status);
+    stmt->bindString(2, msg_id);
+    if (stmt->execute() != 0) {
+        if (err) *err = stmt->getErrStr();
+        return false;
+    }
+    return true;
 }
 
 }  // namespace CIM::dao

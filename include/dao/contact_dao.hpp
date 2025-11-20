@@ -52,9 +52,10 @@ class ContactDAO {
     // 获取好友列表
     static bool ListByUser(const uint64_t user_id, std::vector<ContactItem>& out,
                            std::string* err = nullptr);
+
     // 根据用户ID和目标ID获取联系人详情
-    static bool GetByOwnerAndTarget(const uint64_t owner_id, const uint64_t target_id,
-                                    ContactDetails& out, std::string* err = nullptr);
+    static bool GetByOwnerAndTarget(const uint64_t target_id, ContactDetails& out,
+                                    std::string* err = nullptr);
 
     // 根据用户ID和目标ID获取联系人详情(使用已有的 MySQL 连接)
     static bool GetByOwnerAndTargetWithConn(const std::shared_ptr<CIM::MySQL>& db,
@@ -73,6 +74,12 @@ class ContactDAO {
     // 删除联系人
     static bool DeleteWithConn(const std::shared_ptr<CIM::MySQL>& db, const uint64_t user_id,
                                const uint64_t contact_id, std::string* err = nullptr);
+
+    // 修改好友状态与好友关系
+    static bool UpdateStatusAndRelationWithConn(const std::shared_ptr<CIM::MySQL>& db,
+                                                const uint64_t user_id, const uint64_t contact_id,
+                                                const uint8_t status, const uint8_t relation,
+                                                std::string* err = nullptr);
 
     // 修改联系人分组
     static bool ChangeGroupWithConn(const std::shared_ptr<CIM::MySQL>& db, const uint64_t user_id,

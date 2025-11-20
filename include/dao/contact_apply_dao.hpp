@@ -50,10 +50,13 @@ class ContactApplyDAO {
     // 拒接好友申请
     static bool RejectApply(const uint64_t handler_user_id, const uint64_t apply_user_id,
                             const std::string& remark, std::string* err = nullptr);
-    // 根据ID获取申请记录详情
+    // 根据ID获取申请记录详情（使用带MySQL连接的函数）
     static bool GetDetailByIdWithConn(const std::shared_ptr<CIM::MySQL>& db,
                                       const uint64_t apply_id, ContactApply& out,
                                       std::string* err = nullptr);
+    // 根据ID获取申请记录详情（内部会自动获取 MySQL 连接）
+    static bool GetDetailById(const uint64_t apply_id, ContactApply& out,
+                              std::string* err = nullptr);
 };
 
 }  // namespace CIM::dao

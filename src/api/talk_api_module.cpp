@@ -1,5 +1,6 @@
 #include "api/talk_api_module.hpp"
 
+#include "app/message_service.hpp"
 #include "app/talk_service.hpp"
 #include "app/user_service.hpp"
 #include "base/macro.hpp"
@@ -50,6 +51,39 @@ bool TalkApiModule::onServerReady() {
                                  // 清除未读消息数
                                  auto result = CIM::app::TalkService::clearSessionUnreadNum(
                                      uid_result.data, to_from_id, talk_mode);
+                                 if (!result.ok) {
+                                     res->setStatus(ToHttpStatus(result.code));
+                                     res->setBody(Error(result.code, result.err));
+                                     return 0;
+                                 }
+
+                                 res->setBody(Ok());
+                                 return 0;
+                             });
+
+        dispatch->addServlet("/api/v1/talk/session-clear-records",
+                             [](CIM::http::HttpRequest::ptr req, CIM::http::HttpResponse::ptr res,
+                                CIM::http::HttpSession::ptr) {
+                                 res->setHeader("Content-Type", "application/json");
+
+                                 uint64_t to_from_id;
+                                 uint8_t talk_mode;
+                                 Json::Value body;
+                                 if (ParseBody(req->getBody(), body)) {
+                                     to_from_id = CIM::JsonUtil::GetUint64(body, "to_from_id");
+                                     talk_mode = CIM::JsonUtil::GetUint8(body, "talk_mode");
+                                 }
+
+                                 auto uid_result = GetUidFromToken(req, res);
+                                 if (!uid_result.ok) {
+                                     res->setStatus(ToHttpStatus(uid_result.code));
+                                     res->setBody(Error(uid_result.code, uid_result.err));
+                                     return 0;
+                                 }
+
+                                 // 清空聊天记录（硬删除）
+                                 auto result = CIM::app::MessageService::ClearTalkRecords(
+                                     uid_result.data, talk_mode, to_from_id);
                                  if (!result.ok) {
                                      res->setStatus(ToHttpStatus(result.code));
                                      res->setBody(Error(result.code, result.err));

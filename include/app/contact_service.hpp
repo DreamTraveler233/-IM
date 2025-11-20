@@ -11,14 +11,14 @@ namespace CIM::app {
 
 class ContactService {
    public:
-    // 同意好友申请
-    static VoidResult AgreeApply(const uint64_t user_id, const uint64_t apply_id,
-                                 const std::string& remark);
+    // 同意好友申请（同时在服务端创建会话并返回会话信息）
+    static TalkSessionResult AgreeApply(const uint64_t user_id, const uint64_t apply_id,
+                                       const std::string& remark);
     // 根据手机号查询联系人
     static UserResult SearchByMobile(const std::string& mobile);
 
     // 根据用户ID获取联系人详情
-    static ContactDetailsResult GetContactDetail(const uint64_t owner_id, const uint64_t target_id);
+    static ContactDetailsResult GetContactDetail(const uint64_t target_id);
 
     // 显示好友列表
     static ContactListResult ListFriends(const uint64_t user_id);

@@ -227,6 +227,41 @@ bool WsGatewayModule::onServerReady() {
                 return 0;
             }
 
+            // 转发正在输入事件
+            if (event == "im.message.keyboard") {
+                if (payload.isMember("talk_mode") && payload.isMember("to_from_id")) {
+                    int talk_mode = payload["talk_mode"].asInt();
+                    uint64_t to_from_id = 0;
+                    if (payload["to_from_id"].isString()) {
+                        to_from_id = std::stoull(payload["to_from_id"].asString());
+                    } else {
+                        to_from_id = payload["to_from_id"].asUInt64();
+                    }
+
+                    // 获取当前发送者ID
+                    ConnCtx ctx;
+                    {
+                        CIM::RWMutex::ReadLock lock(s_ws_mutex);
+                        auto it = s_ws_conns.find((void*)session.get());
+                        if (it != s_ws_conns.end()) {
+                            ctx = it->second.ctx;
+                        }
+                    }
+
+                    if (ctx.uid != 0) {
+                        Json::Value fwd = payload;
+                        fwd["from_id"] = (Json::UInt64)ctx.uid;
+
+                        if (talk_mode == 1) {
+                            // 单聊：直接推送给对方
+                            PushToUser(to_from_id, "im.message.keyboard", fwd);
+                        }
+                        // 群聊暂不广播输入状态，避免消息风暴
+                    }
+                }
+                return 0;
+            }
+
             // 3) 其他事件留给后续业务模块拓展，这里仅记录日志
             CIM_LOG_DEBUG(g_logger) << "unhandled ws event: " << event;
             return 0;

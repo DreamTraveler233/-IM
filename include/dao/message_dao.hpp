@@ -27,6 +27,7 @@ struct Message {
     uint8_t is_revoked = 2;       // 1=已撤回 2=正常
     uint64_t revoke_by = 0;       // 撤回人(0表示NULL)
     std::time_t revoke_time = 0;  // 撤回时间(0表示NULL)
+    uint8_t status = 1;           // 发送状态: 1=成功 2=发送中 3=失败
     std::time_t created_at = 0;   // 创建时间
     std::time_t updated_at = 0;   // 更新时间
 };
@@ -39,6 +40,7 @@ struct MessageRecord {
     std::string nickname;    // 发送者昵称
     std::string avatar;      // 发送者头像
     uint8_t is_revoked = 2;  // 撤回状态
+    uint8_t status = 1;      // 发送状态：1成功 2发送中 3失败
     std::string send_time;   // 发送时间字符串
     std::string extra;       // 额外 JSON
     std::string quote;       // 引用消息 JSON
@@ -94,6 +96,13 @@ class MessageDao {
     // 撤回消息（状态置 1），仅当当前状态为正常(2)。
     static bool Revoke(const std::shared_ptr<CIM::MySQL>& db, const std::string& msg_id,
                        const uint64_t user_id, std::string* err = nullptr);
+
+    // 硬删除会话下的所有消息
+    static bool DeleteByTalkId(const std::shared_ptr<CIM::MySQL>& db, const uint64_t talk_id,
+                               std::string* err = nullptr);
+    // 更新消息的发送状态（用于标记失败/成功等）
+    static bool SetStatus(const std::shared_ptr<CIM::MySQL>& db, const std::string& msg_id,
+                          uint8_t status, std::string* err = nullptr);
 };
 
 }  // namespace CIM::dao
