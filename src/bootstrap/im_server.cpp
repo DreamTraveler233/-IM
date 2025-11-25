@@ -16,6 +16,7 @@
 #include "app/message_service_impl.hpp"
 #include "app/talk_service_impl.hpp"
 #include "app/user_service_impl.hpp"
+#include "app/group_service_impl.hpp"
 #include "base/macro.hpp"
 #include "db/mysql.hpp"
 #include "http/http_server.hpp"
@@ -26,6 +27,7 @@
 #include "infra/repository/message_repository_impl.hpp"
 #include "infra/repository/talk_repository_impl.hpp"
 #include "infra/repository/user_repository_impl.hpp"
+#include "infra/repository/group_repository_impl.hpp"
 #include "infra/storage/istorage.hpp"
 #include "other/crypto_module.hpp"
 #include "other/module.hpp"
@@ -49,8 +51,6 @@ int main(int argc, char** argv) {
     IM::ModuleMgr::GetInstance()->add(std::make_shared<IM::api::ArticleApiModule>());
     // 表情模块占位
     IM::ModuleMgr::GetInstance()->add(std::make_shared<IM::api::EmoticonApiModule>());
-    // 群组模块占位
-    IM::ModuleMgr::GetInstance()->add(std::make_shared<IM::api::GroupApiModule>());
     // 组织架构模块占位
     IM::ModuleMgr::GetInstance()->add(std::make_shared<IM::api::OrganizeApiModule>());
 
@@ -67,6 +67,7 @@ int main(int argc, char** argv) {
     auto upload_repo = std::make_shared<IM::infra::repository::MediaRepositoryImpl>(db_manager);
     auto message_repo = std::make_shared<IM::infra::repository::MessageRepositoryImpl>(db_manager);
     auto talk_repo = std::make_shared<IM::infra::repository::TalkRepositoryImpl>(db_manager);
+    auto group_repo = std::make_shared<IM::infra::repository::GroupRepositoryImpl>();
 
     // Services
     // Create storage adapter and inject to media service
@@ -83,6 +84,8 @@ int main(int argc, char** argv) {
         std::make_shared<IM::app::TalkServiceImpl>(talk_repo, contact_repo, message_repo);
     auto contact_service = std::make_shared<IM::app::ContactServiceImpl>(
         contact_repo, user_repo, talk_repo, message_service, talk_service);
+    auto group_service = std::make_shared<IM::app::GroupServiceImpl>(
+        group_repo, user_repo, message_service, talk_service);
 
     // Register API modules in the order that satisfies dependencies
     IM::ModuleMgr::GetInstance()->add(std::make_shared<IM::api::UserApiModule>(user_service));
@@ -95,6 +98,7 @@ int main(int argc, char** argv) {
     IM::ModuleMgr::GetInstance()->add(std::make_shared<IM::api::MessageApiModule>(message_service));
     IM::ModuleMgr::GetInstance()->add(
         std::make_shared<IM::api::TalkApiModule>(talk_service, user_service, message_service));
+    IM::ModuleMgr::GetInstance()->add(std::make_shared<IM::api::GroupApiModule>(group_service));
 
     // WebSocket 网关模块
     IM::ModuleMgr::GetInstance()->add(std::make_shared<IM::api::WsGatewayModule>(user_service));
