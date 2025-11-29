@@ -10,10 +10,12 @@ static constexpr const char* kDBName = "default";
 
 TalkServiceImpl::TalkServiceImpl(IM::domain::repository::ITalkRepository::Ptr talk_repo,
                                  IM::domain::repository::IContactRepository::Ptr contact_repo,
-                                 IM::domain::repository::IMessageRepository::Ptr message_repo)
+                                 IM::domain::repository::IMessageRepository::Ptr message_repo,
+                                 IM::domain::repository::IGroupRepository::Ptr group_repo)
     : m_talk_repo(std::move(talk_repo)),
       m_contact_repo(std::move(contact_repo)),
-      m_message_repo(std::move(message_repo)) {}
+      m_message_repo(std::move(message_repo)),
+      m_group_repo(std::move(group_repo)) {}
 
 Result<std::vector<dto::TalkSessionItem>> TalkServiceImpl::getSessionListByUserId(
     const uint64_t user_id) {
@@ -146,6 +148,7 @@ Result<dto::TalkSessionItem> TalkServiceImpl::createSession(const uint64_t user_
         return result;
     }
 
+
     IM::model::TalkSession session;
     session.user_id = user_id;
     session.talk_id = talk_id;
@@ -155,6 +158,21 @@ Result<dto::TalkSessionItem> TalkServiceImpl::createSession(const uint64_t user_
         session.name = cd.nickname;
         session.avatar = cd.avatar;
         session.remark = cd.contact_remark;
+    }else if (talk_mode == 2) {
+    // 获取群组信息
+        IM::model::Group group;
+        if (!m_group_repo->GetGroupById(db, to_from_id, group, &err)) {
+            trans->rollback();  // 回滚事务
+            IM_LOG_ERROR(g_logger)
+                << "TalkServiceImpl::createSession GetGroupById failed, user_id=" << user_id
+                << ", group_id=" << to_from_id
+                << ", err=" << err;
+            result.code = 500;
+            result.err = "创建会话失败";
+            return result;  
+        }
+        session.name = group.group_name;
+        session.avatar = group.avatar;
     }
     if (!m_talk_repo->createSession(db, session, &err)) {
         trans->rollback();  // 回滚事务

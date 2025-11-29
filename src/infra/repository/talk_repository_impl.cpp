@@ -417,6 +417,90 @@ bool TalkRepositoryImpl::editRemarkWithConn(const std::shared_ptr<IM::MySQL>& db
     return true;
 }
 
+bool TalkRepositoryImpl::updateSessionAvatarByTargetUser(const uint64_t target_user_id,
+                                                        const std::string& avatar,
+                                                        std::string* err) {
+    auto db = m_db_manager->get(kDBName);
+    if (!db) {
+        if (err) *err = "get mysql connection failed";
+        return false;
+    }
+    const char* sql =
+        "UPDATE im_talk_session SET avatar = ? WHERE talk_mode = 1 AND to_from_id = ? AND deleted_at IS NULL";
+    auto stmt = db->prepare(sql);
+    if (!stmt) {
+        if (err) *err = "prepare sql failed";
+        return false;
+    }
+    if (avatar.empty()) {
+        stmt->bindNull(1);
+    } else {
+        stmt->bindString(1, avatar);
+    }
+    stmt->bindUint64(2, target_user_id);
+    if (stmt->execute() != 0) {
+        if (err) *err = stmt->getErrStr();
+        return false;
+    }
+    return true;
+}
+
+bool TalkRepositoryImpl::updateSessionAvatarByTargetUserWithConn(const std::shared_ptr<IM::MySQL>& db,
+                                                                const uint64_t target_user_id,
+                                                                const std::string& avatar,
+                                                                std::string* err) {
+    if (!db) {
+        if (err) *err = "get mysql connection failed";
+        return false;
+    }
+    const char* sql =
+        "UPDATE im_talk_session SET avatar = ? WHERE talk_mode = 1 AND to_from_id = ? AND deleted_at IS NULL";
+    auto stmt = db->prepare(sql);
+    if (!stmt) {
+        if (err) *err = "prepare sql failed";
+        return false;
+    }
+    if (avatar.empty()) {
+        stmt->bindNull(1);
+    } else {
+        stmt->bindString(1, avatar);
+    }
+    stmt->bindUint64(2, target_user_id);
+    if (stmt->execute() != 0) {
+        if (err) *err = stmt->getErrStr();
+        return false;
+    }
+    return true;
+}
+
+bool TalkRepositoryImpl::listUsersByTargetUserWithConn(const std::shared_ptr<IM::MySQL>& db,
+                                                      const uint64_t target_user_id,
+                                                      std::vector<uint64_t>& out_user_ids,
+                                                      std::string* err) {
+    out_user_ids.clear();
+    if (!db) {
+        if (err) *err = "get mysql connection failed";
+        return false;
+    }
+    const char* sql =
+        "SELECT user_id FROM im_talk_session WHERE talk_mode = 1 AND to_from_id = ? AND deleted_at IS NULL";
+    auto stmt = db->prepare(sql);
+    if (!stmt) {
+        if (err) *err = "prepare sql failed";
+        return false;
+    }
+    stmt->bindUint64(1, target_user_id);
+    auto res = stmt->query();
+    if (!res) {
+        if (err) *err = "query failed";
+        return false;
+    }
+    while (res->next()) {
+        out_user_ids.push_back(res->getUint64(0));
+    }
+    return true;
+}
+
 bool TalkRepositoryImpl::getSessionByUserId(const std::shared_ptr<IM::MySQL>& db,
                                             const uint64_t user_id, dto::TalkSessionItem& out,
                                             const uint64_t to_from_id, const uint8_t talk_mode,

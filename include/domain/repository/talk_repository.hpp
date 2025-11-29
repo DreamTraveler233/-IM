@@ -106,6 +106,20 @@ class ITalkRepository {
     virtual bool editRemarkWithConn(const std::shared_ptr<IM::MySQL>& db, const uint64_t user_id,
                                     const uint64_t to_from_id, const std::string& remark,
                                     std::string* err = nullptr) = 0;
+   virtual bool updateSessionAvatarByTargetUserWithConn(const std::shared_ptr<IM::MySQL>& db,
+                                           const uint64_t target_user_id,
+                                           const std::string& avatar,
+                                           std::string* err = nullptr) = 0;
+   virtual bool listUsersByTargetUserWithConn(const std::shared_ptr<IM::MySQL>& db,
+                                    const uint64_t target_user_id,
+                                    std::vector<uint64_t>& out_user_ids,
+                                    std::string* err = nullptr) = 0;
+
+   // 更新当目标用户（单聊中 to_from_id）更改头像时，更新会话快照中的 avatar 字段
+   // 例如用户 A 修改头像后，需要更新所有以 A 为 to_from_id 的单聊会话（其它人的会话视图）
+   virtual bool updateSessionAvatarByTargetUser(const uint64_t target_user_id,
+                                     const std::string& avatar,
+                                     std::string* err = nullptr) = 0;
 };
 
 }  // namespace IM::domain::repository

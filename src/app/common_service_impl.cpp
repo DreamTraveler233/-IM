@@ -121,7 +121,7 @@ Result<model::EmailVerifyCode> CommonServiceImpl::SendEmailCode(
 
     /* 根据配置决定是否发送真实邮件 */
     if (g_email_enabled->getValue()) {
-        std::string title = "【简讯IM】验证码";
+        std::string title = "【心语IM】验证码";
         std::string body =
             "尊敬的用户：\r\n\r\n您好！\r\n\r\n您正在进行邮箱验证操作，本次验证码为：" + code +
             "，请在5分钟内完成验证。\r\n\r\n如非本人操作，请忽略此邮件。\r\n\r\nIM即时通讯团队";

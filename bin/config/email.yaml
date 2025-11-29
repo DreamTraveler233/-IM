@@ -11,6 +11,6 @@ smtp:
     user: "3027460939@qq.com"    # SMTP 登录用户名（一般为邮箱或 API KEY）
     pass: "paxdywwtchjaddag"      # SMTP 密码/授权码 / API Key
   from:
-    name: "简讯IM 开发团队"        # 发件人显示名称
+    name: "心语IM 开发团队"        # 发件人显示名称
     address: "3027460939@qq.com" # 发件人邮箱地址
   debug: false                     # 是否开启 SMTP 调试日志

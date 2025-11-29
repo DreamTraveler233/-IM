@@ -24,7 +24,8 @@ class IContactService {
     virtual Result<model::User> SearchByMobile(const std::string& mobile) = 0;
 
     // 根据用户ID获取联系人详情
-    virtual Result<dto::ContactDetails> GetContactDetail(const uint64_t target_id) = 0;
+    virtual Result<dto::ContactDetails> GetContactDetail(const uint64_t user_id,
+                                                         const uint64_t target_id) = 0;
 
     // 显示好友列表
     virtual Result<std::vector<dto::ContactItem>> ListFriends(const uint64_t user_id) = 0;

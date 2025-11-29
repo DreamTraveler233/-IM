@@ -261,6 +261,50 @@ bool UserRepositoryImpl::UpdateUserInfo(const uint64_t id, const std::string& ni
     return true;
 }
 
+bool UserRepositoryImpl::UpdateUserInfoWithConn(const std::shared_ptr<IM::MySQL>& db,
+                                               const uint64_t id, const std::string& nickname,
+                                               const std::string& avatar,
+                                               const std::string& avatar_media_id,
+                                               const std::string& motto, const uint8_t gender,
+                                               const std::string& birthday, std::string* err) {
+    if (!db) {
+        if (err) *err = "get mysql connection failed";
+        return false;
+    }
+
+    const char* sql =
+        "UPDATE im_user SET nickname = COALESCE(NULLIF(?, ''), nickname), avatar = ?, "
+        "avatar_media_id = ?, motto = NULLIF(?, ''), gender = ?, "
+        "birthday = ?, "
+        "updated_at = NOW() WHERE id = ?";
+    auto stmt = db->prepare(sql);
+    if (!stmt) {
+        if (err) *err = "prepare sql failed";
+        return false;
+    }
+    stmt->bindString(1, nickname);
+    if (!avatar.empty())
+        stmt->bindString(2, avatar);
+    else
+        stmt->bindNull(2);
+    if (!avatar_media_id.empty())
+        stmt->bindString(3, avatar_media_id);
+    else
+        stmt->bindNull(3);
+    stmt->bindString(4, motto);
+    stmt->bindUint8(5, gender);
+    if (!birthday.empty())
+        stmt->bindString(6, birthday);
+    else
+        stmt->bindNull(6);
+    stmt->bindUint64(7, id);
+    if (stmt->execute() != 0) {
+        if (err) *err = stmt->getErrStr();
+        return false;
+    }
+    return true;
+}
+
 bool UserRepositoryImpl::UpdateMobile(const uint64_t id, const std::string& new_mobile,
                                       std::string* err) {
     auto db = m_db_manager->get(kDBName);

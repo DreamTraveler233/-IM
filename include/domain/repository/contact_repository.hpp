@@ -26,8 +26,8 @@ class IContactRepository {
                                             std::string* err = nullptr) = 0;
 
     // 根据用户ID和目标ID获取联系人详情
-    virtual bool GetByOwnerAndTarget(const uint64_t target_id, dto::ContactDetails& out,
-                                     std::string* err = nullptr) = 0;
+    virtual bool GetByOwnerAndTarget(const uint64_t owner_id, const uint64_t target_id,
+                                     dto::ContactDetails& out, std::string* err = nullptr) = 0;
 
     // 根据用户ID和目标ID获取联系人详情
     virtual bool GetByOwnerAndTarget(const std::shared_ptr<IM::MySQL>& db, const uint64_t owner_id,

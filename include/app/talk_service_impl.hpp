@@ -2,8 +2,9 @@
 #define __IM_APP_TALK_SERVICE_IMPL_HPP__
 
 #include "domain/repository/contact_repository.hpp"
-#include "domain/repository/talk_repository.hpp"
+#include "domain/repository/group_repository.hpp"
 #include "domain/repository/message_repository.hpp"
+#include "domain/repository/talk_repository.hpp"
 #include "domain/service/talk_service.hpp"
 
 namespace IM::app {
@@ -12,7 +13,8 @@ class TalkServiceImpl : public IM::domain::service::ITalkService {
    public:
     explicit TalkServiceImpl(IM::domain::repository::ITalkRepository::Ptr talk_repo,
                              IM::domain::repository::IContactRepository::Ptr contact_repo,
-                             IM::domain::repository::IMessageRepository::Ptr message_repo);
+                             IM::domain::repository::IMessageRepository::Ptr message_repo,
+                             IM::domain::repository::IGroupRepository::Ptr group_repo);
 
     // 获取用户的会话列表
     Result<std::vector<dto::TalkSessionItem>> getSessionListByUserId(
@@ -40,6 +42,7 @@ class TalkServiceImpl : public IM::domain::service::ITalkService {
     IM::domain::repository::ITalkRepository::Ptr m_talk_repo;
     IM::domain::repository::IContactRepository::Ptr m_contact_repo;
     IM::domain::repository::IMessageRepository::Ptr m_message_repo;
+    IM::domain::repository::IGroupRepository::Ptr m_group_repo;
 };
 
 }  // namespace IM::app

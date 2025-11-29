@@ -55,9 +55,20 @@ class TalkRepositoryImpl : public IM::domain::repository::ITalkRepository {
                             std::string* err = nullptr) override;
     bool listUsersByTalkId(const uint64_t talk_id, std::vector<uint64_t>& out_user_ids,
                            std::string* err = nullptr) override;
+    bool updateSessionAvatarByTargetUserWithConn(const std::shared_ptr<IM::MySQL>& db,
+                                                const uint64_t target_user_id,
+                                                const std::string& avatar,
+                                                std::string* err = nullptr) override;
+    bool listUsersByTargetUserWithConn(const std::shared_ptr<IM::MySQL>& db,
+                                      const uint64_t target_user_id,
+                                      std::vector<uint64_t>& out_user_ids,
+                                      std::string* err = nullptr) override;
     bool editRemarkWithConn(const std::shared_ptr<IM::MySQL>& db, const uint64_t user_id,
                             const uint64_t to_from_id, const std::string& remark,
                             std::string* err = nullptr) override;
+    bool updateSessionAvatarByTargetUser(const uint64_t target_user_id,
+                                        const std::string& avatar,
+                                        std::string* err = nullptr) override;
 
    private:
     std::shared_ptr<IM::MySQLManager> m_db_manager;

@@ -129,8 +129,7 @@ Result<dto::TalkSessionItem> ContactServiceImpl::AgreeApply(const uint64_t user_
     }
 
     // 创建会话（当前用户），返回会话数据（若创建失败，仍返回 ok=true，不阻塞同意流程）
-    auto session_result_current =
-        m_talk_service->createSession(user_id, apply.apply_user_id, 1);
+    auto session_result_current = m_talk_service->createSession(user_id, apply.apply_user_id, 1);
     if (session_result_current.ok) {
         result.ok = true;
         result.data = session_result_current.data;
@@ -201,8 +200,8 @@ Result<dto::TalkSessionItem> ContactServiceImpl::AgreeApply(const uint64_t user_
     // 发送欢迎消息给双方
     if (session_result_current.ok) {
         m_message_service->SendMessage(user_id, 1, apply.apply_user_id, 1,
-                                             "我们已经是好友了，可以开始聊天了", "", "", "",
-                                             std::vector<uint64_t>());
+                                       "我们已经是好友了，可以开始聊天了", "", "", "",
+                                       std::vector<uint64_t>());
     }
 
     return result;
@@ -309,11 +308,13 @@ Result<model::User> ContactServiceImpl::SearchByMobile(const std::string& mobile
     return result;
 }
 
-Result<dto::ContactDetails> ContactServiceImpl::GetContactDetail(const uint64_t target_id) {
+Result<dto::ContactDetails> ContactServiceImpl::GetContactDetail(const uint64_t user_id,
+                                                                 const uint64_t target_id) {
     Result<dto::ContactDetails> result;
     std::string err;
 
-    if (!m_contact_repo->GetByOwnerAndTarget(target_id, result.data, &err)) {
+    // 查询我的视角下好友的信息
+    if (!m_contact_repo->GetByOwnerAndTarget(user_id, target_id, result.data, &err)) {
         if (!err.empty()) {
             IM_LOG_ERROR(g_logger)
                 << "GetContactDetail failed, " << "target_id=" << target_id << ", err=" << err;
@@ -322,6 +323,21 @@ Result<dto::ContactDetails> ContactServiceImpl::GetContactDetail(const uint64_t 
             return result;
         }
     }
+
+    // 查询好友视角下我的信息
+    Result<IM::dto::ContactDetails> result_friend;
+    if (!m_contact_repo->GetByOwnerAndTarget(target_id, user_id, result_friend.data, &err)) {
+        if (!err.empty()) {
+            IM_LOG_ERROR(g_logger)
+                << "GetContactDetail failed, " << "target_id=" << target_id << ", err=" << err;
+            result.code = 500;
+            result.err = "获取联系人详情失败";
+            return result;
+        }
+    }
+
+    result.data.relation = result_friend.data.relation;
+
     result.ok = true;
     return result;
 }

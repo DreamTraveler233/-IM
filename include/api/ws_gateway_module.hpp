@@ -2,13 +2,15 @@
 #define __IM_API_WS_GATEWAY_MODULE_HPP__
 
 #include "domain/service/user_service.hpp"
+#include "domain/repository/talk_repository.hpp"
 #include "other/module.hpp"
 
 namespace IM::api {
 
 class WsGatewayModule : public IM::Module {
    public:
-    WsGatewayModule(IM::domain::service::IUserService::Ptr user_service);
+    WsGatewayModule(IM::domain::service::IUserService::Ptr user_service,
+                    IM::domain::repository::ITalkRepository::Ptr talk_repo);
     ~WsGatewayModule() override = default;
 
     bool onServerReady() override;
@@ -24,6 +26,7 @@ class WsGatewayModule : public IM::Module {
 
    private:
     IM::domain::service::IUserService::Ptr m_user_service;
+    IM::domain::repository::ITalkRepository::Ptr m_talk_repo;
 };
 
 }  // namespace IM::api

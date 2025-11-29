@@ -20,7 +20,8 @@ class ContactServiceImpl : public IM::domain::service::IContactService {
     Result<dto::TalkSessionItem> AgreeApply(const uint64_t user_id, const uint64_t apply_id,
                                             const std::string& remark) override;
     Result<model::User> SearchByMobile(const std::string& mobile) override;
-    Result<dto::ContactDetails> GetContactDetail(const uint64_t target_id) override;
+    Result<dto::ContactDetails> GetContactDetail(const uint64_t user_id,
+                                                 const uint64_t target_id) override;
     Result<std::vector<dto::ContactItem>> ListFriends(const uint64_t user_id) override;
     Result<void> CreateContactApply(const uint64_t apply_user_id, const uint64_t target_user_id,
                                     const std::string& remark) override;

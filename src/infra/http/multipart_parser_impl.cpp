@@ -51,7 +51,7 @@ public:
                std::string* err = nullptr) override {
         
         std::string boundary = GetBoundary(content_type);
-        IM_LOG_INFO(IM_LOG_NAME("root")) << "Parse start. Content-Type: " << content_type << ", Boundary: '" << boundary << "'";
+        // IM_LOG_INFO(IM_LOG_NAME("root")) << "Parse start. Content-Type: " << content_type << ", Boundary: '" << boundary << "'";
         
         // Fallback: Sniff boundary if missing or if parsing fails later (though we check upfront here)
         if (boundary.empty()) {
@@ -72,7 +72,7 @@ public:
         }
 
         std::string delimiter = "--" + boundary;
-        IM_LOG_INFO(IM_LOG_NAME("root")) << "Delimiter: '" << delimiter << "'";
+        // IM_LOG_INFO(IM_LOG_NAME("root")) << "Delimiter: '" << delimiter << "'";
 
         size_t boundary_count = 0;
         size_t search_pos = 0;
@@ -97,16 +97,16 @@ public:
             return false;
         }
 
-        IM_LOG_INFO(IM_LOG_NAME("root")) << "Found first boundary at pos: " << pos;
+        // IM_LOG_INFO(IM_LOG_NAME("root")) << "Found first boundary at pos: " << pos;
 
         while (true) {
             size_t next_pos = body.find(delimiter, pos + delimiter.size());
             if (next_pos == std::string::npos) {
-                IM_LOG_INFO(IM_LOG_NAME("root")) << "No next boundary found after pos: " << pos;
+                //IM_LOG_INFO(IM_LOG_NAME("root")) << "No next boundary found after pos: " << pos;
                 break;
             }
 
-            IM_LOG_INFO(IM_LOG_NAME("root")) << "Found next boundary at pos: " << next_pos;
+            // IM_LOG_INFO(IM_LOG_NAME("root")) << "Found next boundary at pos: " << next_pos;
 
             size_t start_part = pos + delimiter.size();
             
@@ -157,7 +157,7 @@ public:
             std::string header_str = part_content.substr(0, header_sep);
             std::string data_str = part_content.substr(header_sep + header_sep_len);
             
-            IM_LOG_INFO(IM_LOG_NAME("root")) << "Part found. Header size: " << header_str.size() << ", Data size: " << data_str.size();
+            //IM_LOG_INFO(IM_LOG_NAME("root")) << "Part found. Header size: " << header_str.size() << ", Data size: " << data_str.size();
 
             Part part;
             part.size = data_str.size();

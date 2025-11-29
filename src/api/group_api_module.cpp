@@ -1,5 +1,6 @@
 #include "api/group_api_module.hpp"
 
+#include <set>
 #include "base/macro.hpp"
 #include "common/common.hpp"
 #include "http/http_server.hpp"
@@ -11,8 +12,11 @@ namespace IM::api {
 
 static auto g_logger = IM_LOG_NAME("root");
 
-GroupApiModule::GroupApiModule(IM::domain::service::IGroupService::Ptr group_service)
-    : Module("api.group", "0.1.0", "builtin"), m_group_service(std::move(group_service)) {}
+GroupApiModule::GroupApiModule(IM::domain::service::IGroupService::Ptr group_service,
+                               IM::domain::service::IContactService::Ptr contact_service)
+    : Module("api.group", "0.1.0", "builtin"),
+      m_group_service(std::move(group_service)),
+      m_contact_service(std::move(contact_service)) {}
 
 bool GroupApiModule::onServerReady() {
     std::vector<IM::TcpServer::ptr> httpServers;
@@ -153,7 +157,7 @@ bool GroupApiModule::onServerReady() {
                 res->setBody(Ok());
                 return 0;
             });
-            
+
         dispatch->addServlet("/api/v1/group-apply/list",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr /*session*/) {
@@ -286,6 +290,7 @@ bool GroupApiModule::onServerReady() {
                                  res->setBody(Ok(d));
                                  return 0;
                              });
+
         dispatch->addServlet("/api/v1/group-vote/detail",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr /*session*/) {
@@ -337,6 +342,7 @@ bool GroupApiModule::onServerReady() {
                                  res->setBody(Ok(d));
                                  return 0;
                              });
+
         dispatch->addServlet("/api/v1/group-vote/submit",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr /*session*/) {
@@ -369,6 +375,7 @@ bool GroupApiModule::onServerReady() {
                                  res->setBody(Ok());
                                  return 0;
                              });
+
         dispatch->addServlet("/api/v1/group-vote/finish",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr /*session*/) {
@@ -395,6 +402,7 @@ bool GroupApiModule::onServerReady() {
                                  res->setBody(Ok());
                                  return 0;
                              });
+
         dispatch->addServlet("/api/v1/group-vote/list",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr /*session*/) {
@@ -466,6 +474,7 @@ bool GroupApiModule::onServerReady() {
                                  res->setBody(Ok());
                                  return 0;
                              });
+
         dispatch->addServlet("/api/v1/group/create",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr /*session*/) {
@@ -500,6 +509,7 @@ bool GroupApiModule::onServerReady() {
                                  res->setBody(Ok(d));
                                  return 0;
                              });
+
         dispatch->addServlet("/api/v1/group/detail",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr /*session*/) {
@@ -545,6 +555,7 @@ bool GroupApiModule::onServerReady() {
                                  res->setBody(Ok(d));
                                  return 0;
                              });
+
         dispatch->addServlet("/api/v1/group/dismiss",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr /*session*/) {
@@ -571,24 +582,95 @@ bool GroupApiModule::onServerReady() {
                                  res->setBody(Ok());
                                  return 0;
                              });
+
         dispatch->addServlet(
             "/api/v1/group/get-invite-friends",
-            [this](IM::http::HttpRequest::ptr /*req*/, IM::http::HttpResponse::ptr res,
+            [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                    IM::http::HttpSession::ptr /*session*/) {
                 res->setHeader("Content-Type", "application/json");
+                auto uid_result = GetUidFromToken(req, res);
+                if (!uid_result.ok) {
+                    res->setStatus(ToHttpStatus(uid_result.code));
+                    res->setBody(Error(uid_result.code, uid_result.err));
+                    return 0;
+                }
+                Json::Value body;
+                if (!ParseBody(req->getBody(), body)) {
+                    res->setStatus(IM::http::HttpStatus::BAD_REQUEST);
+                    return 0;
+                }
+                uint64_t group_id = IM::JsonUtil::GetUint64(body, "group_id");
+
+                // 1. Get all friends
+                auto friends_res = m_contact_service->ListFriends(uid_result.data);
+                if (!friends_res.ok) {
+                    res->setStatus(ToHttpStatus(friends_res.code));
+                    res->setBody(Error(friends_res.code, friends_res.err));
+                    return 0;
+                }
+
+                // 2. Get group members
+                auto members_res = m_group_service->GetGroupMemberList(uid_result.data, group_id);
+                if (!members_res.ok) {
+                    res->setStatus(ToHttpStatus(members_res.code));
+                    res->setBody(Error(members_res.code, members_res.err));
+                    return 0;
+                }
+
+                // 3. Filter
+                std::set<uint64_t> member_ids;
+                for (const auto& m : members_res.data) {
+                    member_ids.insert(m.user_id);
+                }
+
                 Json::Value d;
-                d["list"] = Json::Value(Json::arrayValue);
+                Json::Value list(Json::arrayValue);
+                for (const auto& f : friends_res.data) {
+                    if (member_ids.find(f.user_id) == member_ids.end()) {
+                        Json::Value v;
+                        v["user_id"] = (Json::UInt64)f.user_id;
+                        v["nickname"] = f.nickname;
+                        v["avatar"] = f.avatar;
+                        v["gender"] = f.gender;
+                        v["motto"] = f.motto;
+                        v["remark"] = f.remark;
+                        list.append(v);
+                    }
+                }
+                d["items"] = list;
                 res->setBody(Ok(d));
                 return 0;
             });
+
         dispatch->addServlet(
             "/api/v1/group/handover",
-            [this](IM::http::HttpRequest::ptr /*req*/, IM::http::HttpResponse::ptr res,
+            [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                    IM::http::HttpSession::ptr /*session*/) {
                 res->setHeader("Content-Type", "application/json");
+                auto uid_result = GetUidFromToken(req, res);
+                if (!uid_result.ok) {
+                    res->setStatus(ToHttpStatus(uid_result.code));
+                    res->setBody(Error(uid_result.code, uid_result.err));
+                    return 0;
+                }
+                Json::Value body;
+                if (!ParseBody(req->getBody(), body)) {
+                    res->setStatus(IM::http::HttpStatus::BAD_REQUEST);
+                    return 0;
+                }
+                uint64_t group_id = IM::JsonUtil::GetUint64(body, "group_id");
+                uint64_t user_id = IM::JsonUtil::GetUint64(body, "user_id");
+
+                auto result = m_group_service->HandoverGroup(uid_result.data, group_id, user_id);
+                if (!result.ok) {
+                    res->setStatus(ToHttpStatus(result.code));
+                    res->setBody(Error(result.code, result.err));
+                    return 0;
+                }
                 res->setBody(Ok());
                 return 0;
             });
+
         dispatch->addServlet("/api/v1/group/invite",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr /*session*/) {
@@ -621,6 +703,7 @@ bool GroupApiModule::onServerReady() {
                                  res->setBody(Ok());
                                  return 0;
                              });
+
         dispatch->addServlet("/api/v1/group/list",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr /*session*/) {
@@ -638,7 +721,7 @@ bool GroupApiModule::onServerReady() {
                                      return 0;
                                  }
                                  Json::Value d;
-                                 Json::Value list(Json::arrayValue);
+                                 Json::Value items(Json::arrayValue);
                                  for (const auto& item : result.data) {
                                      Json::Value v;
                                      v["group_id"] = (Json::UInt64)item.group_id;
@@ -647,12 +730,13 @@ bool GroupApiModule::onServerReady() {
                                      v["profile"] = item.profile;
                                      v["leader"] = (Json::UInt64)item.leader;
                                      v["creator_id"] = (Json::UInt64)item.creator_id;
-                                     list.append(v);
+                                     items.append(v);
                                  }
-                                 d["list"] = list;
+                                 d["items"] = items;
                                  res->setBody(Ok(d));
                                  return 0;
                              });
+
         dispatch->addServlet("/api/v1/group/member-list",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr /*session*/) {
@@ -813,9 +897,30 @@ bool GroupApiModule::onServerReady() {
                              });
         dispatch->addServlet(
             "/api/v1/group/remark-update",
-            [this](IM::http::HttpRequest::ptr /*req*/, IM::http::HttpResponse::ptr res,
+            [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                    IM::http::HttpSession::ptr /*session*/) {
                 res->setHeader("Content-Type", "application/json");
+                auto uid_result = GetUidFromToken(req, res);
+                if (!uid_result.ok) {
+                    res->setStatus(ToHttpStatus(uid_result.code));
+                    res->setBody(Error(uid_result.code, uid_result.err));
+                    return 0;
+                }
+                Json::Value body;
+                if (!ParseBody(req->getBody(), body)) {
+                    res->setStatus(IM::http::HttpStatus::BAD_REQUEST);
+                    return 0;
+                }
+                uint64_t group_id = IM::JsonUtil::GetUint64(body, "group_id");
+                std::string remark = IM::JsonUtil::GetString(body, "remark");
+
+                auto result =
+                    m_group_service->UpdateMemberRemark(uid_result.data, group_id, remark);
+                if (!result.ok) {
+                    res->setStatus(ToHttpStatus(result.code));
+                    res->setBody(Error(result.code, result.err));
+                    return 0;
+                }
                 res->setBody(Ok());
                 return 0;
             });

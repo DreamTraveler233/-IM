@@ -46,8 +46,8 @@ bool ContactRepositoryImpl::GetContactItemListByUserId(uint64_t user_id,
     return true;
 }
 
-bool ContactRepositoryImpl::GetByOwnerAndTarget(uint64_t target_id, dto::ContactDetails& out,
-                                                std::string* err) {
+bool ContactRepositoryImpl::GetByOwnerAndTarget(const uint64_t owner_id, const uint64_t target_id,
+                                                dto::ContactDetails& out, std::string* err) {
     auto db = m_db_manager->get(kDBName);
     if (!db) {
         if (err) *err = "get mysql connection failed";
@@ -62,7 +62,7 @@ bool ContactRepositoryImpl::GetByOwnerAndTarget(uint64_t target_id, dto::Contact
         if (err) *err = "prepare sql failed";
         return false;
     }
-    stmt->bindUint64(1, target_id);
+    stmt->bindUint64(1, owner_id);
     stmt->bindUint64(2, target_id);
     auto res = stmt->query();
     if (!res) {

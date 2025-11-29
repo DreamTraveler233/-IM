@@ -1,16 +1,21 @@
 #include "infra/repository/article_repository_impl.hpp"
-#include "util/util.hpp"
+
 #include <sstream>
+
+#include "util/util.hpp"
 
 namespace IM::infra::repository {
 
 // Classify
-bool ArticleRepositoryImpl::CreateClassify(IM::MySQL::ptr conn, model::ArticleClassify& classify, std::string* err) {
+bool ArticleRepositoryImpl::CreateClassify(IM::MySQL::ptr conn, model::ArticleClassify& classify,
+                                           std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "INSERT INTO im_article_classify (user_id, class_name, is_default, sort, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())";
+    const char* sql =
+        "INSERT INTO im_article_classify (user_id, class_name, is_default, sort, created_at, "
+        "updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -28,12 +33,16 @@ bool ArticleRepositoryImpl::CreateClassify(IM::MySQL::ptr conn, model::ArticleCl
     return true;
 }
 
-bool ArticleRepositoryImpl::UpdateClassify(IM::MySQL::ptr conn, const model::ArticleClassify& classify, std::string* err) {
+bool ArticleRepositoryImpl::UpdateClassify(IM::MySQL::ptr conn,
+                                           const model::ArticleClassify& classify,
+                                           std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "UPDATE im_article_classify SET class_name=?, is_default=?, sort=?, updated_at=NOW() WHERE id=?";
+    const char* sql =
+        "UPDATE im_article_classify SET class_name=?, is_default=?, sort=?, updated_at=NOW() WHERE "
+        "id=?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -50,7 +59,8 @@ bool ArticleRepositoryImpl::UpdateClassify(IM::MySQL::ptr conn, const model::Art
     return true;
 }
 
-bool ArticleRepositoryImpl::DeleteClassify(IM::MySQL::ptr conn, uint64_t classify_id, std::string* err) {
+bool ArticleRepositoryImpl::DeleteClassify(IM::MySQL::ptr conn, uint64_t classify_id,
+                                           std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
@@ -69,12 +79,17 @@ bool ArticleRepositoryImpl::DeleteClassify(IM::MySQL::ptr conn, uint64_t classif
     return true;
 }
 
-bool ArticleRepositoryImpl::GetClassifyList(IM::MySQL::ptr conn, uint64_t user_id, std::vector<dto::ArticleClassifyItem>& list, std::string* err) {
+bool ArticleRepositoryImpl::GetClassifyList(IM::MySQL::ptr conn, uint64_t user_id,
+                                            std::vector<dto::ArticleClassifyItem>& list,
+                                            std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT c.id, c.class_name, c.is_default, c.sort, (SELECT COUNT(*) FROM im_article a WHERE a.classify_id = c.id AND a.deleted_at IS NULL) as count FROM im_article_classify c WHERE c.user_id = ? AND c.deleted_at IS NULL ORDER BY c.sort ASC";
+    const char* sql =
+        "SELECT c.id, c.class_name, c.is_default, c.sort, (SELECT COUNT(*) FROM im_article a WHERE "
+        "a.classify_id = c.id AND a.deleted_at IS NULL) as count FROM im_article_classify c WHERE "
+        "c.user_id = ? AND c.deleted_at IS NULL ORDER BY c.sort ASC";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -98,12 +113,14 @@ bool ArticleRepositoryImpl::GetClassifyList(IM::MySQL::ptr conn, uint64_t user_i
     return true;
 }
 
-bool ArticleRepositoryImpl::GetClassify(IM::MySQL::ptr conn, uint64_t classify_id, model::ArticleClassify& classify, std::string* err) {
+bool ArticleRepositoryImpl::GetClassify(IM::MySQL::ptr conn, uint64_t classify_id,
+                                        model::ArticleClassify& classify, std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT id, user_id, class_name, is_default, sort FROM im_article_classify WHERE id = ?";
+    const char* sql =
+        "SELECT id, user_id, class_name, is_default, sort FROM im_article_classify WHERE id = ?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -123,7 +140,8 @@ bool ArticleRepositoryImpl::GetClassify(IM::MySQL::ptr conn, uint64_t classify_i
     return true;
 }
 
-bool ArticleRepositoryImpl::SortClassify(IM::MySQL::ptr conn, uint64_t user_id, uint64_t classify_id, int sort_index, std::string* err) {
+bool ArticleRepositoryImpl::SortClassify(IM::MySQL::ptr conn, uint64_t user_id,
+                                         uint64_t classify_id, int sort_index, std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
@@ -145,12 +163,16 @@ bool ArticleRepositoryImpl::SortClassify(IM::MySQL::ptr conn, uint64_t user_id, 
 }
 
 // Article
-bool ArticleRepositoryImpl::CreateArticle(IM::MySQL::ptr conn, model::Article& article, std::string* err) {
+bool ArticleRepositoryImpl::CreateArticle(IM::MySQL::ptr conn, model::Article& article,
+                                          std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "INSERT INTO im_article (user_id, classify_id, title, abstract, md_content, image, is_asterisk, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+    const char* sql =
+        "INSERT INTO im_article (user_id, classify_id, title, abstract, md_content, image, "
+        "is_asterisk, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), "
+        "NOW())";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -168,7 +190,7 @@ bool ArticleRepositoryImpl::CreateArticle(IM::MySQL::ptr conn, model::Article& a
     stmt->bindString(6, article.image);
     stmt->bindInt32(7, article.is_asterisk);
     stmt->bindInt32(8, article.status);
-    
+
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();
         return false;
@@ -177,12 +199,15 @@ bool ArticleRepositoryImpl::CreateArticle(IM::MySQL::ptr conn, model::Article& a
     return true;
 }
 
-bool ArticleRepositoryImpl::UpdateArticle(IM::MySQL::ptr conn, const model::Article& article, std::string* err) {
+bool ArticleRepositoryImpl::UpdateArticle(IM::MySQL::ptr conn, const model::Article& article,
+                                          std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "UPDATE im_article SET title=?, abstract=?, md_content=?, image=?, classify_id=?, status=?, updated_at=NOW() WHERE id=?";
+    const char* sql =
+        "UPDATE im_article SET title=?, abstract=?, md_content=?, image=?, classify_id=?, "
+        "status=?, updated_at=NOW() WHERE id=?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -199,7 +224,7 @@ bool ArticleRepositoryImpl::UpdateArticle(IM::MySQL::ptr conn, const model::Arti
     }
     stmt->bindInt32(6, article.status);
     stmt->bindUint64(7, article.id);
-    
+
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();
         return false;
@@ -207,7 +232,8 @@ bool ArticleRepositoryImpl::UpdateArticle(IM::MySQL::ptr conn, const model::Arti
     return true;
 }
 
-bool ArticleRepositoryImpl::DeleteArticle(IM::MySQL::ptr conn, uint64_t article_id, bool forever, std::string* err) {
+bool ArticleRepositoryImpl::DeleteArticle(IM::MySQL::ptr conn, uint64_t article_id, bool forever,
+                                          std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
@@ -231,7 +257,8 @@ bool ArticleRepositoryImpl::DeleteArticle(IM::MySQL::ptr conn, uint64_t article_
     return true;
 }
 
-bool ArticleRepositoryImpl::RecoverArticle(IM::MySQL::ptr conn, uint64_t article_id, std::string* err) {
+bool ArticleRepositoryImpl::RecoverArticle(IM::MySQL::ptr conn, uint64_t article_id,
+                                           std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
@@ -250,12 +277,15 @@ bool ArticleRepositoryImpl::RecoverArticle(IM::MySQL::ptr conn, uint64_t article
     return true;
 }
 
-bool ArticleRepositoryImpl::GetArticle(IM::MySQL::ptr conn, uint64_t article_id, model::Article& article, std::string* err) {
+bool ArticleRepositoryImpl::GetArticle(IM::MySQL::ptr conn, uint64_t article_id,
+                                       model::Article& article, std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT id, user_id, classify_id, title, abstract, md_content, image, is_asterisk, status, created_at, updated_at FROM im_article WHERE id=?";
+    const char* sql =
+        "SELECT id, user_id, classify_id, title, abstract, md_content, image, is_asterisk, status, "
+        "created_at, updated_at FROM im_article WHERE id=?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -285,26 +315,28 @@ bool ArticleRepositoryImpl::GetArticle(IM::MySQL::ptr conn, uint64_t article_id,
     return true;
 }
 
-bool ArticleRepositoryImpl::GetArticleList(IM::MySQL::ptr conn, uint64_t user_id, int page, int size, 
-                            uint64_t classify_id, const std::string& keyword, int find_type, 
-                            std::vector<dto::ArticleItem>& list, int& total, std::string* err) {
+bool ArticleRepositoryImpl::GetArticleList(IM::MySQL::ptr conn, uint64_t user_id, int page,
+                                           int size, uint64_t classify_id,
+                                           const std::string& keyword, int find_type,
+                                           std::vector<dto::ArticleItem>& list, int& total,
+                                           std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    
+
     std::string from_clause = " FROM im_article a";
     std::string join_clause = "";
     std::string where_clause = "";
-    
-    if (find_type == 1) { // Asterisk
+
+    if (find_type == 1) {  // Asterisk
         join_clause += " JOIN im_article_asterisk s ON a.id = s.article_id";
         where_clause = " WHERE s.user_id = ? AND a.deleted_at IS NULL";
     } else {
         where_clause = " WHERE a.user_id = ?";
-        if (find_type == 2) { // Recycle
+        if (find_type == 2) {  // Recycle
             where_clause += " AND a.deleted_at IS NOT NULL";
-        } else { // Normal
+        } else {  // Normal
             where_clause += " AND a.deleted_at IS NULL";
             if (classify_id > 0) {
                 where_clause += " AND a.classify_id = ?";
@@ -323,7 +355,7 @@ bool ArticleRepositoryImpl::GetArticleList(IM::MySQL::ptr conn, uint64_t user_id
         if (err) *err = conn->getErrStr();
         return false;
     }
-    
+
     int idx = 1;
     count_stmt->bindUint64(idx++, user_id);
     if (find_type != 1 && find_type != 2 && classify_id > 0) {
@@ -334,7 +366,7 @@ bool ArticleRepositoryImpl::GetArticleList(IM::MySQL::ptr conn, uint64_t user_id
         count_stmt->bindString(idx++, kw);
         count_stmt->bindString(idx++, kw);
     }
-    
+
     auto count_res = count_stmt->query();
     if (count_res && count_res->next()) {
         total = count_res->getInt32(0);
@@ -345,19 +377,18 @@ bool ArticleRepositoryImpl::GetArticleList(IM::MySQL::ptr conn, uint64_t user_id
     if (total == 0) return true;
 
     // List
-    std::string list_sql = "SELECT a.id, a.title, a.abstract, a.image, a.classify_id, c.class_name, a.is_asterisk, a.status, a.created_at, a.updated_at" 
-                         + from_clause 
-                         + " LEFT JOIN im_article_classify c ON a.classify_id = c.id" 
-                         + join_clause 
-                         + where_clause 
-                         + " ORDER BY a.created_at DESC LIMIT ? OFFSET ?";
-    
+    std::string list_sql =
+        "SELECT a.id, a.title, a.abstract, a.image, a.classify_id, c.class_name, a.is_asterisk, "
+        "a.status, a.created_at, a.updated_at" +
+        from_clause + " LEFT JOIN im_article_classify c ON a.classify_id = c.id" + join_clause +
+        where_clause + " ORDER BY a.created_at DESC LIMIT ? OFFSET ?";
+
     auto list_stmt = conn->prepare(list_sql);
     if (!list_stmt) {
         if (err) *err = conn->getErrStr();
         return false;
     }
-    
+
     idx = 1;
     list_stmt->bindUint64(idx++, user_id);
     if (find_type != 1 && find_type != 2 && classify_id > 0) {
@@ -370,7 +401,7 @@ bool ArticleRepositoryImpl::GetArticleList(IM::MySQL::ptr conn, uint64_t user_id
     }
     list_stmt->bindInt32(idx++, size);
     list_stmt->bindInt32(idx++, (page - 1) * size);
-    
+
     auto res = list_stmt->query();
     if (!res) {
         if (err) *err = "query article list failed";
@@ -403,7 +434,9 @@ bool ArticleRepositoryImpl::GetArticleList(IM::MySQL::ptr conn, uint64_t user_id
 }
 
 // Tags
-bool ArticleRepositoryImpl::UpdateArticleTags(IM::MySQL::ptr conn, uint64_t article_id, const std::vector<std::string>& tags, std::string* err) {
+bool ArticleRepositoryImpl::UpdateArticleTags(IM::MySQL::ptr conn, uint64_t article_id,
+                                              const std::vector<std::string>& tags,
+                                              std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
@@ -429,7 +462,9 @@ bool ArticleRepositoryImpl::UpdateArticleTags(IM::MySQL::ptr conn, uint64_t arti
 
     for (const auto& tag_name : tags) {
         // Ensure tag exists
-        const char* tag_sql = "INSERT IGNORE INTO im_article_tag (user_id, tag_name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())";
+        const char* tag_sql =
+            "INSERT IGNORE INTO im_article_tag (user_id, tag_name, created_at, updated_at) VALUES "
+            "(?, ?, NOW(), NOW())";
         auto tag_stmt = conn->prepare(tag_sql);
         if (tag_stmt) {
             tag_stmt->bindUint64(1, article.user_id);
@@ -447,7 +482,8 @@ bool ArticleRepositoryImpl::UpdateArticleTags(IM::MySQL::ptr conn, uint64_t arti
             if (res && res->next()) {
                 uint64_t tag_id = res->getInt64(0);
                 // Link
-                const char* link_sql = "INSERT INTO im_article_tag_map (article_id, tag_id) VALUES (?, ?)";
+                const char* link_sql =
+                    "INSERT INTO im_article_tag_map (article_id, tag_id) VALUES (?, ?)";
                 auto link_stmt = conn->prepare(link_sql);
                 if (link_stmt) {
                     link_stmt->bindUint64(1, article_id);
@@ -460,12 +496,16 @@ bool ArticleRepositoryImpl::UpdateArticleTags(IM::MySQL::ptr conn, uint64_t arti
     return true;
 }
 
-bool ArticleRepositoryImpl::GetArticleTags(IM::MySQL::ptr conn, uint64_t article_id, std::vector<dto::ArticleTagItem>& tags, std::string* err) {
+bool ArticleRepositoryImpl::GetArticleTags(IM::MySQL::ptr conn, uint64_t article_id,
+                                           std::vector<dto::ArticleTagItem>& tags,
+                                           std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT t.id, t.tag_name FROM im_article_tag t JOIN im_article_tag_map m ON t.id = m.tag_id WHERE m.article_id=?";
+    const char* sql =
+        "SELECT t.id, t.tag_name FROM im_article_tag t JOIN im_article_tag_map m ON t.id = "
+        "m.tag_id WHERE m.article_id=?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -485,7 +525,9 @@ bool ArticleRepositoryImpl::GetArticleTags(IM::MySQL::ptr conn, uint64_t article
 }
 
 // Asterisk
-bool ArticleRepositoryImpl::SetArticleAsterisk(IM::MySQL::ptr conn, uint64_t user_id, uint64_t article_id, bool is_asterisk, std::string* err) {
+bool ArticleRepositoryImpl::SetArticleAsterisk(IM::MySQL::ptr conn, uint64_t user_id,
+                                               uint64_t article_id, bool is_asterisk,
+                                               std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
@@ -501,7 +543,9 @@ bool ArticleRepositoryImpl::SetArticleAsterisk(IM::MySQL::ptr conn, uint64_t use
 
     // Update relation table
     if (is_asterisk) {
-        const char* sql = "INSERT IGNORE INTO im_article_asterisk (article_id, user_id, created_at) VALUES (?, ?, NOW())";
+        const char* sql =
+            "INSERT IGNORE INTO im_article_asterisk (article_id, user_id, created_at) VALUES (?, "
+            "?, NOW())";
         auto stmt = conn->prepare(sql);
         if (!stmt) {
             if (err) *err = conn->getErrStr();
@@ -524,12 +568,15 @@ bool ArticleRepositoryImpl::SetArticleAsterisk(IM::MySQL::ptr conn, uint64_t use
 }
 
 // Annex
-bool ArticleRepositoryImpl::AddAnnex(IM::MySQL::ptr conn, model::ArticleAnnex& annex, std::string* err) {
+bool ArticleRepositoryImpl::AddAnnex(IM::MySQL::ptr conn, model::ArticleAnnex& annex,
+                                     std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "INSERT INTO im_article_annex (article_id, user_id, annex_name, annex_size, annex_path, mime_type, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())";
+    const char* sql =
+        "INSERT INTO im_article_annex (article_id, user_id, annex_name, annex_size, annex_path, "
+        "mime_type, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -541,7 +588,7 @@ bool ArticleRepositoryImpl::AddAnnex(IM::MySQL::ptr conn, model::ArticleAnnex& a
     stmt->bindUint64(4, annex.annex_size);
     stmt->bindString(5, annex.annex_path);
     stmt->bindString(6, annex.mime_type);
-    
+
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();
         return false;
@@ -550,7 +597,8 @@ bool ArticleRepositoryImpl::AddAnnex(IM::MySQL::ptr conn, model::ArticleAnnex& a
     return true;
 }
 
-bool ArticleRepositoryImpl::DeleteAnnex(IM::MySQL::ptr conn, uint64_t annex_id, bool forever, std::string* err) {
+bool ArticleRepositoryImpl::DeleteAnnex(IM::MySQL::ptr conn, uint64_t annex_id, bool forever,
+                                        std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
@@ -593,12 +641,16 @@ bool ArticleRepositoryImpl::RecoverAnnex(IM::MySQL::ptr conn, uint64_t annex_id,
     return true;
 }
 
-bool ArticleRepositoryImpl::GetAnnexList(IM::MySQL::ptr conn, uint64_t article_id, std::vector<dto::ArticleAnnexItem>& list, std::string* err) {
+bool ArticleRepositoryImpl::GetAnnexList(IM::MySQL::ptr conn, uint64_t article_id,
+                                         std::vector<dto::ArticleAnnexItem>& list,
+                                         std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT id, article_id, annex_name, annex_size, annex_path, created_at FROM im_article_annex WHERE article_id=? AND deleted_at IS NULL";
+    const char* sql =
+        "SELECT id, article_id, annex_name, annex_size, annex_path, created_at FROM "
+        "im_article_annex WHERE article_id=? AND deleted_at IS NULL";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -621,12 +673,16 @@ bool ArticleRepositoryImpl::GetAnnexList(IM::MySQL::ptr conn, uint64_t article_i
     return true;
 }
 
-bool ArticleRepositoryImpl::GetRecycleAnnexList(IM::MySQL::ptr conn, uint64_t user_id, std::vector<dto::ArticleAnnexItem>& list, std::string* err) {
+bool ArticleRepositoryImpl::GetRecycleAnnexList(IM::MySQL::ptr conn, uint64_t user_id,
+                                                std::vector<dto::ArticleAnnexItem>& list,
+                                                std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT id, article_id, annex_name, annex_size, annex_path, created_at, deleted_at FROM im_article_annex WHERE user_id=? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC";
+    const char* sql =
+        "SELECT id, article_id, annex_name, annex_size, annex_path, created_at, deleted_at FROM "
+        "im_article_annex WHERE user_id=? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -650,12 +706,14 @@ bool ArticleRepositoryImpl::GetRecycleAnnexList(IM::MySQL::ptr conn, uint64_t us
     return true;
 }
 
-bool ArticleRepositoryImpl::GetAnnex(IM::MySQL::ptr conn, uint64_t annex_id, model::ArticleAnnex& annex, std::string* err) {
+bool ArticleRepositoryImpl::GetAnnex(IM::MySQL::ptr conn, uint64_t annex_id,
+                                     model::ArticleAnnex& annex, std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT id, article_id, user_id, annex_name, annex_path FROM im_article_annex WHERE id=?";
+    const char* sql =
+        "SELECT id, article_id, user_id, annex_name, annex_path FROM im_article_annex WHERE id=?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -664,7 +722,7 @@ bool ArticleRepositoryImpl::GetAnnex(IM::MySQL::ptr conn, uint64_t annex_id, mod
     stmt->bindUint64(1, annex_id);
     auto res = stmt->query();
     if (!res || !res->next()) return false;
-    
+
     annex.id = res->getInt64(0);
     annex.article_id = res->getInt64(1);
     annex.user_id = res->getInt64(2);
@@ -673,4 +731,4 @@ bool ArticleRepositoryImpl::GetAnnex(IM::MySQL::ptr conn, uint64_t annex_id, mod
     return true;
 }
 
-}
+}  // namespace IM::infra::repository

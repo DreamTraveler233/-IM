@@ -31,6 +31,7 @@ bool TalkApiModule::onServerReady() {
         if (!http) continue;
         auto dispatch = http->getServletDispatch();
 
+        // 清除会话未读消息数
         dispatch->addServlet("/api/v1/talk/session-clear-unread-num",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr) {
@@ -64,6 +65,7 @@ bool TalkApiModule::onServerReady() {
                                  return 0;
                              });
 
+        // 清空会话聊天记录(单向)
         dispatch->addServlet("/api/v1/talk/session-clear-records",
                              [this](IM::http::HttpRequest::ptr req, IM::http::HttpResponse::ptr res,
                                     IM::http::HttpSession::ptr) {
@@ -84,7 +86,7 @@ bool TalkApiModule::onServerReady() {
                                      return 0;
                                  }
 
-                                 // 清空聊天记录（硬删除）
+                                 // 清空聊天记录
                                  auto result = m_message_service->ClearTalkRecords(
                                      uid_result.data, talk_mode, to_from_id);
                                  if (!result.ok) {

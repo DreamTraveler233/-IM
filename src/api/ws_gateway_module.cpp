@@ -12,13 +12,22 @@
 #include "http/ws_session.hpp"
 #include "system/application.hpp"
 #include "util/util.hpp"
+#include "domain/repository/talk_repository.hpp"
 
 namespace IM::api {
 
 static auto g_logger = IM_LOG_NAME("root");
 
-WsGatewayModule::WsGatewayModule(IM::domain::service::IUserService::Ptr user_service)
-    : Module("ws.gateway", "0.1.0", "builtin"), m_user_service(std::move(user_service)) {}
+// 静态 talk repo（用于静态 PushImMessage 调用）
+static IM::domain::repository::ITalkRepository::Ptr s_talk_repo = nullptr;
+
+WsGatewayModule::WsGatewayModule(IM::domain::service::IUserService::Ptr user_service,
+                                                                 IM::domain::repository::ITalkRepository::Ptr talk_repo)
+        : Module("ws.gateway", "0.1.0", "builtin"), m_user_service(std::move(user_service)),
+            m_talk_repo(std::move(talk_repo)) {
+        // 保存静态引用，供静态方法使用
+        s_talk_repo = m_talk_repo;
+}
 
 // 简易查询串解析（假设无需URL解码，前端传递 token 直接可用）
 static std::unordered_map<std::string, std::string> ParseQueryKV(const std::string& q) {
@@ -296,11 +305,26 @@ void WsGatewayModule::PushImMessage(uint8_t talk_mode, uint64_t to_from_id, uint
         // 单聊：推送给接收方和发送方
         // 不再在服务端做 ID 交换，统一推送标准 payload
         PushToUser(to_from_id, "im.message", payload);
-        PushToUser(from_id, "im.message", payload);
     } else {
-        // 群聊：此处暂不实现广播，留待后续根据群成员在线表进行推送
-        // 可以至少给发送者做自我同步，避免多端不一致
-        PushToUser(from_id, "im.message", payload);
+        // 群聊：通过 talk repository 查出会话内用户并广播
+        try {
+            if (s_talk_repo) {
+                uint64_t talk_id = 0;
+                std::string terr;
+                if (s_talk_repo->getGroupTalkId(to_from_id, talk_id, &terr)) {
+                    std::vector<uint64_t> talk_users;
+                    std::string lerr;
+                    if (s_talk_repo->listUsersByTalkId(talk_id, talk_users, &lerr)) {
+                        for (auto uid : talk_users) {
+                            PushToUser(uid, "im.message", payload);
+                        }
+                        return;
+                    }
+                }
+            }
+        } catch (const std::exception& ex) {
+            IM_LOG_WARN(g_logger) << "broadcast im.message failed: " << ex.what();
+        }
     }
 }
 

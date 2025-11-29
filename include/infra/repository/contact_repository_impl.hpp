@@ -11,8 +11,8 @@ class ContactRepositoryImpl : public IM::domain::repository::IContactRepository 
     explicit ContactRepositoryImpl(std::shared_ptr<IM::MySQLManager> db_manager);
     bool GetContactItemListByUserId(const uint64_t user_id, std::vector<dto::ContactItem>& out,
                                     std::string* err = nullptr) override;
-    bool GetByOwnerAndTarget(const uint64_t target_id, dto::ContactDetails& out,
-                             std::string* err = nullptr) override;
+    bool GetByOwnerAndTarget(const uint64_t owner_id, const uint64_t target_id,
+                             dto::ContactDetails& out, std::string* err = nullptr) override;
     bool GetByOwnerAndTarget(const std::shared_ptr<IM::MySQL>& db, const uint64_t owner_id,
                              const uint64_t target_id, dto::ContactDetails& out,
                              std::string* err = nullptr) override;

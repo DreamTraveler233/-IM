@@ -374,7 +374,8 @@ bool ContactApiModule::onServerReady() {
                                      return 0;
                                  }
 
-                                 auto result = m_contact_service->GetContactDetail(target_id);
+                                 auto result = m_contact_service->GetContactDetail(uid_result.data,
+                                                                                   target_id);
                                  if (!result.ok) {
                                      res->setStatus(ToHttpStatus(result.code));
                                      res->setBody(Error(result.code, result.err));

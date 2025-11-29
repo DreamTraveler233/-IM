@@ -20,6 +20,11 @@ class UserRepositoryImpl : public IM::domain::repository::IUserRepository {
                         const std::string& avatar_media_id, const std::string& motto,
                         const uint8_t gender, const std::string& birthday,
                         std::string* err = nullptr) override;
+    bool UpdateUserInfoWithConn(const std::shared_ptr<IM::MySQL>& db, const uint64_t id,
+                                const std::string& nickname, const std::string& avatar,
+                                const std::string& avatar_media_id, const std::string& motto,
+                                const uint8_t gender, const std::string& birthday,
+                                std::string* err = nullptr) override;
     bool UpdateMobile(const uint64_t id, const std::string& new_mobile,
                       std::string* err = nullptr) override;
     bool UpdateEmail(const uint64_t id, const std::string& new_email,

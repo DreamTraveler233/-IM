@@ -18,6 +18,9 @@ namespace IM::api {
 
 static auto g_logger = IM_LOG_NAME("root");
 
+static auto g_temp_base_dir =
+    IM::Config::Lookup<std::string>("media.temp_base_dir", std::string("data/uploads/tmp"));
+
 UploadApiModule::UploadApiModule(IM::domain::service::IMediaService::Ptr media_service,
                                  IM::http::multipart::MultipartParser::ptr parser)
     : Module("api.upload", "0.1.0", "builtin"),
@@ -92,15 +95,16 @@ bool UploadApiModule::onServerReady() {
             const std::string transfer_encoding_hdr2 = req->getHeader("Transfer-Encoding", "");
             const std::string content_length_hdr2 = req->getHeader("Content-Length", "");
             size_t body_len2 = req->getBody().size();
-            IM_LOG_DEBUG(g_logger) << "Content-Type header: '" << content_type_hdr2
-                                   << "' Transfer-Encoding: '" << transfer_encoding_hdr2
-                                   << "' Content-Length: '" << content_length_hdr2 << "' body_size="
-                                   << body_len2;
+            IM_LOG_DEBUG(g_logger)
+                << "Content-Type header: '" << content_type_hdr2 << "' Transfer-Encoding: '"
+                << transfer_encoding_hdr2 << "' Content-Length: '" << content_length_hdr2
+                << "' body_size=" << body_len2;
             if (!transfer_encoding_hdr2.empty()) {
                 std::string te2 = transfer_encoding_hdr2;
                 for (auto& c : te2) c = static_cast<char>(::tolower((unsigned char)c));
                 if (te2.find("chunked") != std::string::npos) {
-                    IM_LOG_WARN(g_logger) << "chunked Transfer-Encoding not supported for request bodies";
+                    IM_LOG_WARN(g_logger)
+                        << "chunked Transfer-Encoding not supported for request bodies";
                     res->setStatus(ToHttpStatus(400));
                     res->setBody(Error(400, "Transfer-Encoding: chunked not supported"));
                     return 0;
@@ -112,10 +116,10 @@ bool UploadApiModule::onServerReady() {
             const std::string transfer_encoding_hdr = req->getHeader("Transfer-Encoding", "");
             const std::string content_length_hdr = req->getHeader("Content-Length", "");
             size_t body_len = req->getBody().size();
-            IM_LOG_DEBUG(g_logger) << "Content-Type header: '" << content_type_hdr
-                                   << "' Transfer-Encoding: '" << transfer_encoding_hdr
-                                   << "' Content-Length: '" << content_length_hdr << "' body_size="
-                                   << body_len;
+            IM_LOG_DEBUG(g_logger)
+                << "Content-Type header: '" << content_type_hdr << "' Transfer-Encoding: '"
+                << transfer_encoding_hdr << "' Content-Length: '" << content_length_hdr
+                << "' body_size=" << body_len;
 
             // If the request uses chunked transfer encoding, we do not currently support it
             // on the server side for request bodies; return a helpful error so client can
@@ -124,7 +128,8 @@ bool UploadApiModule::onServerReady() {
                 std::string te = transfer_encoding_hdr;
                 for (auto& c : te) c = static_cast<char>(::tolower((unsigned char)c));
                 if (te.find("chunked") != std::string::npos) {
-                    IM_LOG_WARN(g_logger) << "chunked Transfer-Encoding not supported for request bodies";
+                    IM_LOG_WARN(g_logger)
+                        << "chunked Transfer-Encoding not supported for request bodies";
                     res->setStatus(ToHttpStatus(400));
                     res->setBody(Error(400, "Transfer-Encoding: chunked not supported"));
                     return 0;
@@ -148,11 +153,12 @@ bool UploadApiModule::onServerReady() {
 
             if (parts.empty()) {
                 IM_LOG_INFO(g_logger) << "Parsed multipart parts count=0; Content-Type='"
-                                      << req->getHeader("Content-Type", "") << "' body_size="
-                                      << req->getBody().size();
+                                      << req->getHeader("Content-Type", "")
+                                      << "' body_size=" << req->getBody().size();
                 res->setStatus(ToHttpStatus(400));
                 res->setBody(Error(400,
-                                   "no multipart parts parsed; ensure Content-Type multipart/form-data and request body not empty"));
+                                   "no multipart parts parsed; ensure Content-Type "
+                                   "multipart/form-data and request body not empty"));
                 return 0;
             }
 
@@ -162,7 +168,8 @@ bool UploadApiModule::onServerReady() {
                                       << content_type_hdr2 << "' body_size=" << body_len2;
                 res->setStatus(ToHttpStatus(400));
                 res->setBody(Error(400,
-                                   "no multipart parts parsed; ensure Content-Type multipart/form-data and request body not empty"));
+                                   "no multipart parts parsed; ensure Content-Type "
+                                   "multipart/form-data and request body not empty"));
                 return 0;
             }
 
@@ -291,15 +298,11 @@ bool UploadApiModule::onServerReady() {
                                                                  IM::http::HttpSession::ptr) {
             res->setHeader("Content-Type", "application/json");
 
-            // Note: boundary check is performed by parser; continue parsing
-
             std::vector<IM::http::multipart::Part> parts;
             std::string parse_err;
             auto parser = m_parser;
-            std::string base_tmp_dir2 = IM::EnvMgr::GetInstance()->getAbsoluteWorkPath(
-                IM::Config::Lookup<std::string>("media.temp_base_dir",
-                                                std::string("data/uploads/tmp"))
-                    ->getValue());
+            std::string base_tmp_dir2 =
+                IM::EnvMgr::GetInstance()->getAbsoluteWorkPath(g_temp_base_dir->getValue());
             if (!parser->Parse(req->getBody(), req->getHeader("Content-Type", ""), base_tmp_dir2,
                                parts, &parse_err)) {
                 res->setStatus(ToHttpStatus(400));

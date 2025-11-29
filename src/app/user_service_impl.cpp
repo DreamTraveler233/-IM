@@ -1,10 +1,15 @@
 #include "app/user_service_impl.hpp"
 
+#include <jsoncpp/json/json.h>
+
 #include "base/macro.hpp"
+#include "db/mysql.hpp"
 #include "infra/repository/user_repository_impl.hpp"
 #include "model/media_file.hpp"
 #include "util/password.hpp"
 #include "util/security_util.hpp"
+#include "api/ws_gateway_module.hpp"
+#include "util/time_util.hpp"
 
 namespace IM::app {
 
@@ -12,11 +17,13 @@ static auto g_logger = IM_LOG_NAME("system");
 static constexpr const char* kDBName = "default";
 
 UserServiceImpl::UserServiceImpl(IM::domain::repository::IUserRepository::Ptr user_repo,
-                                 IM::domain::service::IMediaService::Ptr media_service,
-                                 IM::domain::service::ICommonService::Ptr common_service)
-    : m_user_repo(std::move(user_repo)),
-      m_media_service(std::move(media_service)),
-      m_common_service(std::move(common_service)) {}
+                                                                 IM::domain::service::IMediaService::Ptr media_service,
+                                                                 IM::domain::service::ICommonService::Ptr common_service,
+                                                                 IM::domain::repository::ITalkRepository::Ptr talk_repo)
+        : m_user_repo(std::move(user_repo)),
+            m_media_service(std::move(media_service)),
+            m_common_service(std::move(common_service)),
+            m_talk_repo(std::move(talk_repo)) {}
 
 Result<model::User> UserServiceImpl::LoadUserInfo(const uint64_t uid) {
     Result<model::User> result;
@@ -85,11 +92,73 @@ Result<void> UserServiceImpl::UpdateUserInfo(const uint64_t uid, const std::stri
         }
     }
 
-    if (!m_user_repo->UpdateUserInfo(uid, nickname, real_avatar, avatar_media_id, motto, gender, birthday, &err)) {
-        IM_LOG_ERROR(g_logger) << "UpdateUserInfo failed, uid=" << uid << ", err=" << err;
+    // 开启事务，保证用户更新与会话更新原子性
+    auto trans = IM::MySQLMgr::GetInstance()->openTransaction(kDBName, false);
+    if (!trans) {
+        IM_LOG_ERROR(g_logger) << "UpdateUserInfo openTransaction failed, uid=" << uid;
         result.code = 500;
         result.err = "更新用户信息失败";
         return result;
+    }
+    auto db = trans->getMySQL();
+    if (!db) {
+        IM_LOG_ERROR(g_logger) << "UpdateUserInfo get transaction connection failed, uid=" << uid;
+        result.code = 500;
+        result.err = "更新用户信息失败";
+        return result;
+    }
+
+    if (!m_user_repo->UpdateUserInfoWithConn(db, uid, nickname, real_avatar, avatar_media_id, motto, gender, birthday, &err)) {
+        IM_LOG_ERROR(g_logger) << "UpdateUserInfo failed, uid=" << uid << ", err=" << err;
+        trans->rollback();
+        result.code = 500;
+        result.err = "更新用户信息失败";
+        return result;
+    }
+    // 更新会话快照中的 avatar 字段（对单聊：其它用户的会话中展示当前用户的头像）
+    std::string err2;
+    if (!m_talk_repo->updateSessionAvatarByTargetUserWithConn(db, uid, real_avatar, &err2)) {
+        if (!err2.empty()) {
+            IM_LOG_WARN(g_logger) << "Failed to update session avatar for user= " << uid << ", err=" << err2;
+        } else {
+            IM_LOG_WARN(g_logger) << "Failed to update session avatar for user= " << uid;
+        }
+        // 回滚事务以保证一致性
+        trans->rollback();
+        result.code = 500;
+        result.err = "更新用户信息失败";
+        return result;
+    }
+
+    // 查询受影响的用户（会话 owner ids），用于推送 WebSocket 更新
+    std::vector<uint64_t> affected_user_ids;
+    if (!m_talk_repo->listUsersByTargetUserWithConn(db, uid, affected_user_ids, &err2)) {
+        IM_LOG_WARN(g_logger) << "listUsersByTargetUserWithConn err=" << err2;
+        // 允许继续提交事务，尽管之后无法推送到特定用户
+    }
+
+    if (!trans->commit()) {
+        const auto commit_err = db->getErrStr();
+        trans->rollback();
+        IM_LOG_ERROR(g_logger) << "UpdateUserInfo commit transaction failed, uid=" << uid
+                               << ", err=" << commit_err;
+        result.code = 500;
+        result.err = "更新用户信息失败";
+        return result;
+    }
+
+    // 提交成功后：向受影响用户推送会话更新事件
+    Json::Value payload;
+    payload["talk_mode"] = 1;
+    payload["to_from_id"] = (Json::UInt64)uid;
+    if (!real_avatar.empty())
+        payload["avatar"] = real_avatar;
+    else
+        payload["avatar"] = Json::Value();
+    payload["updated_at"] = IM::TimeUtil::NowToMS();
+    for (auto user_id : affected_user_ids) {
+        IM::api::WsGatewayModule::PushToUser(user_id, "im.session.update", payload);
+        IM::api::WsGatewayModule::PushToUser(user_id, "im.session.reload", Json::Value());
     }
 
     result.ok = true;

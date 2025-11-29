@@ -2,6 +2,7 @@
 #define __IM_APP_USER_SERVICE_IMPL_HPP__
 
 #include "domain/repository/user_repository.hpp"
+#include "domain/repository/talk_repository.hpp"
 #include "domain/service/common_service.hpp"
 #include "domain/service/media_service.hpp"
 #include "domain/service/user_service.hpp"
@@ -12,7 +13,8 @@ class UserServiceImpl : public IM::domain::service::IUserService {
    public:
     explicit UserServiceImpl(IM::domain::repository::IUserRepository::Ptr user_repo,
                              IM::domain::service::IMediaService::Ptr media_service,
-                             IM::domain::service::ICommonService::Ptr common_service);
+                             IM::domain::service::ICommonService::Ptr common_service,
+                             IM::domain::repository::ITalkRepository::Ptr talk_repo);
 
     Result<model::User> LoadUserInfo(const uint64_t uid) override;
     Result<void> UpdatePassword(const uint64_t uid, const std::string& old_password,
@@ -51,6 +53,7 @@ class UserServiceImpl : public IM::domain::service::IUserService {
     IM::domain::repository::IUserRepository::Ptr m_user_repo;
     IM::domain::service::IMediaService::Ptr m_media_service;
     IM::domain::service::ICommonService::Ptr m_common_service;
+    IM::domain::repository::ITalkRepository::Ptr m_talk_repo;
 };
 
 }  // namespace IM::app

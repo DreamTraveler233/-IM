@@ -1,4 +1,5 @@
 #include "infra/repository/group_repository_impl.hpp"
+
 #include "util/time_util.hpp"
 
 namespace IM::infra::repository {
@@ -8,7 +9,9 @@ bool GroupRepositoryImpl::CreateGroup(IM::MySQL::ptr conn, model::Group& group, 
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "INSERT INTO im_group (group_name, avatar, profile, leader_id, creator_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())";
+    const char* sql =
+        "INSERT INTO im_group (group_name, avatar, profile, leader_id, creator_id, created_at, "
+        "updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -27,12 +30,15 @@ bool GroupRepositoryImpl::CreateGroup(IM::MySQL::ptr conn, model::Group& group, 
     return true;
 }
 
-bool GroupRepositoryImpl::GetGroupById(IM::MySQL::ptr conn, uint64_t group_id, model::Group& group, std::string* err) {
+bool GroupRepositoryImpl::GetGroupById(IM::MySQL::ptr conn, uint64_t group_id, model::Group& group,
+                                       std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT id, group_name, avatar, profile, leader_id, creator_id, is_mute, is_overt, member_num, is_dismissed, created_at FROM im_group WHERE id = ?";
+    const char* sql =
+        "SELECT id, group_name, avatar, profile, leader_id, creator_id, is_mute, is_overt, "
+        "member_num, is_dismissed, created_at FROM im_group WHERE id = ?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -58,7 +64,8 @@ bool GroupRepositoryImpl::GetGroupById(IM::MySQL::ptr conn, uint64_t group_id, m
     return true;
 }
 
-bool GroupRepositoryImpl::UpdateGroup(IM::MySQL::ptr conn, const model::Group& group, std::string* err) {
+bool GroupRepositoryImpl::UpdateGroup(IM::MySQL::ptr conn, const model::Group& group,
+                                      std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
@@ -69,15 +76,15 @@ bool GroupRepositoryImpl::UpdateGroup(IM::MySQL::ptr conn, const model::Group& g
     if (!group.profile.empty()) sql += ", profile = ?";
     if (group.is_mute != 0) sql += ", is_mute = ?";
     if (group.is_overt != 0) sql += ", is_overt = ?";
-    
+
     sql += " WHERE id = ?";
-    
+
     auto stmt = conn->prepare(sql.c_str());
     if (!stmt) {
         if (err) *err = conn->getErrStr();
         return false;
     }
-    
+
     int idx = 1;
     if (!group.group_name.empty()) stmt->bindString(idx++, group.group_name);
     if (!group.avatar.empty()) stmt->bindString(idx++, group.avatar);
@@ -85,7 +92,7 @@ bool GroupRepositoryImpl::UpdateGroup(IM::MySQL::ptr conn, const model::Group& g
     if (group.is_mute != 0) stmt->bindInt32(idx++, group.is_mute);
     if (group.is_overt != 0) stmt->bindInt32(idx++, group.is_overt);
     stmt->bindUint64(idx++, group.id);
-    
+
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();
         return false;
@@ -112,12 +119,17 @@ bool GroupRepositoryImpl::DeleteGroup(IM::MySQL::ptr conn, uint64_t group_id, st
     return true;
 }
 
-bool GroupRepositoryImpl::GetGroupListByUserId(IM::MySQL::ptr conn, uint64_t user_id, std::vector<dto::GroupItem>& groups, std::string* err) {
+bool GroupRepositoryImpl::GetGroupListByUserId(IM::MySQL::ptr conn, uint64_t user_id,
+                                               std::vector<dto::GroupItem>& groups,
+                                               std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT g.id, g.group_name, g.avatar, g.profile, g.leader_id, g.creator_id FROM im_group g JOIN im_group_member m ON g.id = m.group_id WHERE m.user_id = ? AND g.is_dismissed = 0 AND m.deleted_at IS NULL";
+    const char* sql =
+        "SELECT g.id, g.group_name, g.avatar, g.profile, g.leader_id, g.creator_id FROM im_group g "
+        "JOIN im_group_member m ON g.id = m.group_id WHERE m.user_id = ? AND g.is_dismissed = 0 "
+        "AND m.deleted_at IS NULL";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -142,36 +154,41 @@ bool GroupRepositoryImpl::GetGroupListByUserId(IM::MySQL::ptr conn, uint64_t use
     return true;
 }
 
-bool GroupRepositoryImpl::GetOvertGroupList(IM::MySQL::ptr conn, int page, int size, const std::string& name, std::vector<dto::GroupOvertItem>& groups, bool& next, std::string* err) {
+bool GroupRepositoryImpl::GetOvertGroupList(IM::MySQL::ptr conn, int page, int size,
+                                            const std::string& name,
+                                            std::vector<dto::GroupOvertItem>& groups, bool& next,
+                                            std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    std::string sql = "SELECT id, group_name, avatar, profile, member_num, max_num, created_at FROM im_group WHERE is_overt = 2 AND is_dismissed = 0";
+    std::string sql =
+        "SELECT id, group_name, avatar, profile, member_num, max_num, created_at FROM im_group "
+        "WHERE is_overt = 2 AND is_dismissed = 0";
     if (!name.empty()) {
         sql += " AND group_name LIKE ?";
     }
     sql += " LIMIT ? OFFSET ?";
-    
+
     auto stmt = conn->prepare(sql.c_str());
     if (!stmt) {
         if (err) *err = conn->getErrStr();
         return false;
     }
-    
+
     int idx = 1;
     if (!name.empty()) {
         stmt->bindString(idx++, "%" + name + "%");
     }
     stmt->bindInt32(idx++, size + 1);
     stmt->bindInt32(idx++, (page - 1) * size);
-    
+
     auto res = stmt->query();
     if (!res) {
         if (err) *err = "query failed";
         return false;
     }
-    
+
     int count = 0;
     while (res->next()) {
         if (count >= size) {
@@ -192,12 +209,16 @@ bool GroupRepositoryImpl::GetOvertGroupList(IM::MySQL::ptr conn, int page, int s
     return true;
 }
 
-bool GroupRepositoryImpl::AddMember(IM::MySQL::ptr conn, const model::GroupMember& member, std::string* err) {
+bool GroupRepositoryImpl::AddMember(IM::MySQL::ptr conn, const model::GroupMember& member,
+                                    std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "INSERT INTO im_group_member (group_id, user_id, role, joined_at, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW(), NOW()) ON DUPLICATE KEY UPDATE role = VALUES(role), deleted_at = NULL, updated_at = NOW()";
+    const char* sql =
+        "INSERT INTO im_group_member (group_id, user_id, role, joined_at, created_at, updated_at) "
+        "VALUES (?, ?, ?, NOW(), NOW(), NOW()) ON DUPLICATE KEY UPDATE role = VALUES(role), "
+        "deleted_at = NULL, updated_at = NOW()";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -213,12 +234,14 @@ bool GroupRepositoryImpl::AddMember(IM::MySQL::ptr conn, const model::GroupMembe
     return true;
 }
 
-bool GroupRepositoryImpl::RemoveMember(IM::MySQL::ptr conn, uint64_t group_id, uint64_t user_id, std::string* err) {
+bool GroupRepositoryImpl::RemoveMember(IM::MySQL::ptr conn, uint64_t group_id, uint64_t user_id,
+                                       std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "UPDATE im_group_member SET deleted_at = NOW() WHERE group_id = ? AND user_id = ?";
+    const char* sql =
+        "UPDATE im_group_member SET deleted_at = NOW() WHERE group_id = ? AND user_id = ?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -233,12 +256,15 @@ bool GroupRepositoryImpl::RemoveMember(IM::MySQL::ptr conn, uint64_t group_id, u
     return true;
 }
 
-bool GroupRepositoryImpl::GetMember(IM::MySQL::ptr conn, uint64_t group_id, uint64_t user_id, model::GroupMember& member, std::string* err) {
+bool GroupRepositoryImpl::GetMember(IM::MySQL::ptr conn, uint64_t group_id, uint64_t user_id,
+                                    model::GroupMember& member, std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT id, group_id, user_id, role, visit_card, no_speak_until FROM im_group_member WHERE group_id = ? AND user_id = ? AND deleted_at IS NULL";
+    const char* sql =
+        "SELECT id, group_id, user_id, role, visit_card, no_speak_until FROM im_group_member WHERE "
+        "group_id = ? AND user_id = ? AND deleted_at IS NULL";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -260,12 +286,17 @@ bool GroupRepositoryImpl::GetMember(IM::MySQL::ptr conn, uint64_t group_id, uint
     return true;
 }
 
-bool GroupRepositoryImpl::GetMemberList(IM::MySQL::ptr conn, uint64_t group_id, std::vector<dto::GroupMemberItem>& members, std::string* err) {
+bool GroupRepositoryImpl::GetMemberList(IM::MySQL::ptr conn, uint64_t group_id,
+                                        std::vector<dto::GroupMemberItem>& members,
+                                        std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT m.user_id, u.nickname, u.avatar, u.gender, m.role, m.visit_card, u.motto FROM im_group_member m JOIN im_user u ON m.user_id = u.id WHERE m.group_id = ? AND m.deleted_at IS NULL";
+    const char* sql =
+        "SELECT m.user_id, u.nickname, u.avatar, u.gender, m.role, m.visit_card, u.motto FROM "
+        "im_group_member m JOIN im_user u ON m.user_id = u.id WHERE m.group_id = ? AND "
+        "m.deleted_at IS NULL";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -283,7 +314,7 @@ bool GroupRepositoryImpl::GetMemberList(IM::MySQL::ptr conn, uint64_t group_id, 
         item.nickname = res->getString(1);
         item.avatar = res->getString(2);
         item.gender = res->getInt32(3);
-        item.leader = res->getInt32(4); // role
+        item.leader = res->getInt32(4);  // role
         item.visit_card = res->getString(5);
         item.motto = res->getString(6);
         members.push_back(item);
@@ -291,7 +322,8 @@ bool GroupRepositoryImpl::GetMemberList(IM::MySQL::ptr conn, uint64_t group_id, 
     return true;
 }
 
-bool GroupRepositoryImpl::UpdateMemberRole(IM::MySQL::ptr conn, uint64_t group_id, uint64_t user_id, int role, std::string* err) {
+bool GroupRepositoryImpl::UpdateMemberRole(IM::MySQL::ptr conn, uint64_t group_id, uint64_t user_id,
+                                           int role, std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
@@ -312,12 +344,14 @@ bool GroupRepositoryImpl::UpdateMemberRole(IM::MySQL::ptr conn, uint64_t group_i
     return true;
 }
 
-bool GroupRepositoryImpl::UpdateMemberMute(IM::MySQL::ptr conn, uint64_t group_id, uint64_t user_id, const std::string& until, std::string* err) {
+bool GroupRepositoryImpl::UpdateMemberMute(IM::MySQL::ptr conn, uint64_t group_id, uint64_t user_id,
+                                           const std::string& until, std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "UPDATE im_group_member SET no_speak_until = ? WHERE group_id = ? AND user_id = ?";
+    const char* sql =
+        "UPDATE im_group_member SET no_speak_until = ? WHERE group_id = ? AND user_id = ?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -337,12 +371,14 @@ bool GroupRepositoryImpl::UpdateMemberMute(IM::MySQL::ptr conn, uint64_t group_i
     return true;
 }
 
-bool GroupRepositoryImpl::GetMemberCount(IM::MySQL::ptr conn, uint64_t group_id, int& count, std::string* err) {
+bool GroupRepositoryImpl::GetMemberCount(IM::MySQL::ptr conn, uint64_t group_id, int& count,
+                                         std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT COUNT(*) FROM im_group_member WHERE group_id = ? AND deleted_at IS NULL";
+    const char* sql =
+        "SELECT COUNT(*) FROM im_group_member WHERE group_id = ? AND deleted_at IS NULL";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -358,12 +394,15 @@ bool GroupRepositoryImpl::GetMemberCount(IM::MySQL::ptr conn, uint64_t group_id,
     return true;
 }
 
-bool GroupRepositoryImpl::CreateApply(IM::MySQL::ptr conn, const model::GroupApply& apply, std::string* err) {
+bool GroupRepositoryImpl::CreateApply(IM::MySQL::ptr conn, const model::GroupApply& apply,
+                                      std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "INSERT INTO im_group_apply (group_id, user_id, remark, status, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())";
+    const char* sql =
+        "INSERT INTO im_group_apply (group_id, user_id, remark, status, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, NOW(), NOW())";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -380,12 +419,14 @@ bool GroupRepositoryImpl::CreateApply(IM::MySQL::ptr conn, const model::GroupApp
     return true;
 }
 
-bool GroupRepositoryImpl::GetApplyById(IM::MySQL::ptr conn, uint64_t apply_id, model::GroupApply& apply, std::string* err) {
+bool GroupRepositoryImpl::GetApplyById(IM::MySQL::ptr conn, uint64_t apply_id,
+                                       model::GroupApply& apply, std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT id, group_id, user_id, remark, status FROM im_group_apply WHERE id = ?";
+    const char* sql =
+        "SELECT id, group_id, user_id, remark, status FROM im_group_apply WHERE id = ?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -405,12 +446,15 @@ bool GroupRepositoryImpl::GetApplyById(IM::MySQL::ptr conn, uint64_t apply_id, m
     return true;
 }
 
-bool GroupRepositoryImpl::UpdateApplyStatus(IM::MySQL::ptr conn, uint64_t apply_id, int status, uint64_t handler_id, std::string* err) {
+bool GroupRepositoryImpl::UpdateApplyStatus(IM::MySQL::ptr conn, uint64_t apply_id, int status,
+                                            uint64_t handler_id, std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "UPDATE im_group_apply SET status = ?, handler_user_id = ?, handled_at = NOW(), updated_at = NOW() WHERE id = ?";
+    const char* sql =
+        "UPDATE im_group_apply SET status = ?, handler_user_id = ?, handled_at = NOW(), updated_at "
+        "= NOW() WHERE id = ?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -426,12 +470,16 @@ bool GroupRepositoryImpl::UpdateApplyStatus(IM::MySQL::ptr conn, uint64_t apply_
     return true;
 }
 
-bool GroupRepositoryImpl::GetApplyList(IM::MySQL::ptr conn, uint64_t group_id, std::vector<dto::GroupApplyItem>& applies, std::string* err) {
+bool GroupRepositoryImpl::GetApplyList(IM::MySQL::ptr conn, uint64_t group_id,
+                                       std::vector<dto::GroupApplyItem>& applies,
+                                       std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT a.id, a.user_id, a.group_id, a.remark, u.nickname, u.avatar, a.created_at FROM im_group_apply a JOIN im_user u ON a.user_id = u.id WHERE a.group_id = ? AND a.status = 1";
+    const char* sql =
+        "SELECT a.id, a.user_id, a.group_id, a.remark, u.nickname, u.avatar, a.created_at FROM "
+        "im_group_apply a JOIN im_user u ON a.user_id = u.id WHERE a.group_id = ? AND a.status = 1";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -457,12 +505,16 @@ bool GroupRepositoryImpl::GetApplyList(IM::MySQL::ptr conn, uint64_t group_id, s
     return true;
 }
 
-bool GroupRepositoryImpl::GetUserApplyList(IM::MySQL::ptr conn, uint64_t user_id, std::vector<dto::GroupApplyItem>& applies, std::string* err) {
+bool GroupRepositoryImpl::GetUserApplyList(IM::MySQL::ptr conn, uint64_t user_id,
+                                           std::vector<dto::GroupApplyItem>& applies,
+                                           std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT a.id, a.user_id, a.group_id, a.remark, g.group_name, g.avatar, a.created_at FROM im_group_apply a JOIN im_group g ON a.group_id = g.id WHERE a.user_id = ?";
+    const char* sql =
+        "SELECT a.id, a.user_id, a.group_id, a.remark, g.group_name, g.avatar, a.created_at FROM "
+        "im_group_apply a JOIN im_group g ON a.group_id = g.id WHERE a.user_id = ?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -488,14 +540,17 @@ bool GroupRepositoryImpl::GetUserApplyList(IM::MySQL::ptr conn, uint64_t user_id
     return true;
 }
 
-bool GroupRepositoryImpl::GetUnreadApplyCount(IM::MySQL::ptr conn, uint64_t user_id, int& count, std::string* err) {
+bool GroupRepositoryImpl::GetUnreadApplyCount(IM::MySQL::ptr conn, uint64_t user_id, int& count,
+                                              std::string* err) {
     // This is tricky. User needs to be admin/owner of groups to see unread applies.
     // So we need to join group_member to find groups where user is admin/owner, then count applies for those groups.
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT COUNT(*) FROM im_group_apply a JOIN im_group_member m ON a.group_id = m.group_id WHERE m.user_id = ? AND (m.role = 2 OR m.role = 3) AND a.status = 1 AND a.is_read = 0";
+    const char* sql =
+        "SELECT COUNT(*) FROM im_group_apply a JOIN im_group_member m ON a.group_id = m.group_id "
+        "WHERE m.user_id = ? AND (m.role = 2 OR m.role = 3) AND a.status = 1 AND a.is_read = 0";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -511,12 +566,16 @@ bool GroupRepositoryImpl::GetUnreadApplyCount(IM::MySQL::ptr conn, uint64_t user
     return true;
 }
 
-bool GroupRepositoryImpl::UpdateNotice(IM::MySQL::ptr conn, const model::GroupNotice& notice, std::string* err) {
+bool GroupRepositoryImpl::UpdateNotice(IM::MySQL::ptr conn, const model::GroupNotice& notice,
+                                       std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "INSERT INTO im_group_notice (group_id, content, modify_user_id, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE content = VALUES(content), modify_user_id = VALUES(modify_user_id), updated_at = NOW()";
+    const char* sql =
+        "INSERT INTO im_group_notice (group_id, content, modify_user_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE content = VALUES(content), "
+        "modify_user_id = VALUES(modify_user_id), updated_at = NOW()";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -532,12 +591,15 @@ bool GroupRepositoryImpl::UpdateNotice(IM::MySQL::ptr conn, const model::GroupNo
     return true;
 }
 
-bool GroupRepositoryImpl::GetNotice(IM::MySQL::ptr conn, uint64_t group_id, model::GroupNotice& notice, std::string* err) {
+bool GroupRepositoryImpl::GetNotice(IM::MySQL::ptr conn, uint64_t group_id,
+                                    model::GroupNotice& notice, std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT content, modify_user_id, created_at, updated_at FROM im_group_notice WHERE group_id = ?";
+    const char* sql =
+        "SELECT content, modify_user_id, created_at, updated_at FROM im_group_notice WHERE "
+        "group_id = ?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -557,14 +619,18 @@ bool GroupRepositoryImpl::GetNotice(IM::MySQL::ptr conn, uint64_t group_id, mode
     return true;
 }
 
-bool GroupRepositoryImpl::CreateVote(IM::MySQL::ptr conn, model::GroupVote& vote, const std::vector<model::GroupVoteOption>& options, std::string* err) {
+bool GroupRepositoryImpl::CreateVote(IM::MySQL::ptr conn, model::GroupVote& vote,
+                                     const std::vector<model::GroupVoteOption>& options,
+                                     std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    
+
     // Insert Vote
-    const char* sql = "INSERT INTO im_group_vote (group_id, title, answer_mode, is_anonymous, created_by, deadline_at, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+    const char* sql =
+        "INSERT INTO im_group_vote (group_id, title, answer_mode, is_anonymous, created_by, "
+        "deadline_at, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -581,16 +647,17 @@ bool GroupRepositoryImpl::CreateVote(IM::MySQL::ptr conn, model::GroupVote& vote
         stmt->bindString(6, vote.deadline_at);
     }
     stmt->bindInt32(7, vote.status);
-    
+
     if (stmt->execute() != 0) {
         if (err) *err = stmt->getErrStr();
         return false;
     }
     vote.id = stmt->getLastInsertId();
-    
+
     // Insert Options
     if (!options.empty()) {
-        std::string opt_sql = "INSERT INTO im_group_vote_option (vote_id, opt_key, opt_value, sort) VALUES ";
+        std::string opt_sql =
+            "INSERT INTO im_group_vote_option (vote_id, opt_key, opt_value, sort) VALUES ";
         for (size_t i = 0; i < options.size(); ++i) {
             if (i > 0) opt_sql += ", ";
             opt_sql += "(?, ?, ?, ?)";
@@ -615,12 +682,15 @@ bool GroupRepositoryImpl::CreateVote(IM::MySQL::ptr conn, model::GroupVote& vote
     return true;
 }
 
-bool GroupRepositoryImpl::GetVoteList(IM::MySQL::ptr conn, uint64_t group_id, std::vector<model::GroupVote>& votes, std::string* err) {
+bool GroupRepositoryImpl::GetVoteList(IM::MySQL::ptr conn, uint64_t group_id,
+                                      std::vector<model::GroupVote>& votes, std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT id, group_id, title, answer_mode, is_anonymous, created_by, deadline_at, status, created_at FROM im_group_vote WHERE group_id = ? ORDER BY created_at DESC";
+    const char* sql =
+        "SELECT id, group_id, title, answer_mode, is_anonymous, created_by, deadline_at, status, "
+        "created_at FROM im_group_vote WHERE group_id = ? ORDER BY created_at DESC";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -648,12 +718,15 @@ bool GroupRepositoryImpl::GetVoteList(IM::MySQL::ptr conn, uint64_t group_id, st
     return true;
 }
 
-bool GroupRepositoryImpl::GetVote(IM::MySQL::ptr conn, uint64_t vote_id, model::GroupVote& vote, std::string* err) {
+bool GroupRepositoryImpl::GetVote(IM::MySQL::ptr conn, uint64_t vote_id, model::GroupVote& vote,
+                                  std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT id, group_id, title, answer_mode, is_anonymous, created_by, deadline_at, status, created_at FROM im_group_vote WHERE id = ?";
+    const char* sql =
+        "SELECT id, group_id, title, answer_mode, is_anonymous, created_by, deadline_at, status, "
+        "created_at FROM im_group_vote WHERE id = ?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -677,12 +750,16 @@ bool GroupRepositoryImpl::GetVote(IM::MySQL::ptr conn, uint64_t vote_id, model::
     return true;
 }
 
-bool GroupRepositoryImpl::GetVoteOptions(IM::MySQL::ptr conn, uint64_t vote_id, std::vector<model::GroupVoteOption>& options, std::string* err) {
+bool GroupRepositoryImpl::GetVoteOptions(IM::MySQL::ptr conn, uint64_t vote_id,
+                                         std::vector<model::GroupVoteOption>& options,
+                                         std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT id, vote_id, opt_key, opt_value, sort FROM im_group_vote_option WHERE vote_id = ? ORDER BY sort ASC";
+    const char* sql =
+        "SELECT id, vote_id, opt_key, opt_value, sort FROM im_group_vote_option WHERE vote_id = ? "
+        "ORDER BY sort ASC";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -706,12 +783,15 @@ bool GroupRepositoryImpl::GetVoteOptions(IM::MySQL::ptr conn, uint64_t vote_id, 
     return true;
 }
 
-bool GroupRepositoryImpl::GetVoteAnswers(IM::MySQL::ptr conn, uint64_t vote_id, std::vector<model::GroupVoteAnswer>& answers, std::string* err) {
+bool GroupRepositoryImpl::GetVoteAnswers(IM::MySQL::ptr conn, uint64_t vote_id,
+                                         std::vector<model::GroupVoteAnswer>& answers,
+                                         std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "SELECT vote_id, user_id, opt_key, answered_at FROM im_group_vote_answer WHERE vote_id = ?";
+    const char* sql =
+        "SELECT vote_id, user_id, opt_key, answered_at FROM im_group_vote_answer WHERE vote_id = ?";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -734,12 +814,15 @@ bool GroupRepositoryImpl::GetVoteAnswers(IM::MySQL::ptr conn, uint64_t vote_id, 
     return true;
 }
 
-bool GroupRepositoryImpl::CastVote(IM::MySQL::ptr conn, const model::GroupVoteAnswer& answer, std::string* err) {
+bool GroupRepositoryImpl::CastVote(IM::MySQL::ptr conn, const model::GroupVoteAnswer& answer,
+                                   std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
     }
-    const char* sql = "INSERT INTO im_group_vote_answer (vote_id, user_id, opt_key, answered_at) VALUES (?, ?, ?, NOW())";
+    const char* sql =
+        "INSERT INTO im_group_vote_answer (vote_id, user_id, opt_key, answered_at) VALUES (?, ?, "
+        "?, NOW())";
     auto stmt = conn->prepare(sql);
     if (!stmt) {
         if (err) *err = conn->getErrStr();
@@ -774,7 +857,9 @@ bool GroupRepositoryImpl::FinishVote(IM::MySQL::ptr conn, uint64_t vote_id, std:
     return true;
 }
 
-bool GroupRepositoryImpl::GetVoteAnsweredUserIds(IM::MySQL::ptr conn, uint64_t vote_id, std::vector<uint64_t>& user_ids, std::string* err) {
+bool GroupRepositoryImpl::GetVoteAnsweredUserIds(IM::MySQL::ptr conn, uint64_t vote_id,
+                                                 std::vector<uint64_t>& user_ids,
+                                                 std::string* err) {
     if (!conn) {
         if (err) *err = "connection is null";
         return false;
@@ -797,4 +882,4 @@ bool GroupRepositoryImpl::GetVoteAnsweredUserIds(IM::MySQL::ptr conn, uint64_t v
     return true;
 }
 
-}
+}  // namespace IM::infra::repository
