@@ -379,7 +379,7 @@ bool UserRepositoryImpl::UpdateOfflineStatus(const uint64_t id, std::string* err
     const char* sql = "UPDATE im_user SET online_status = ?, last_online_at = NOW() WHERE id = ?";
     auto stmt = db->prepare(sql);
     if (!stmt) {
-        if (err) *err = stmt->getErrStr();
+        if (err) *err = db->getErrStr();
         return false;
     }
     stmt->bindString(1, "N");
@@ -401,7 +401,7 @@ bool UserRepositoryImpl::GetOnlineStatus(const uint64_t id, std::string& out_sta
     const char* sql = "SELECT online_status FROM im_user WHERE id = ? LIMIT 1";
     auto stmt = db->prepare(sql);
     if (!stmt) {
-        if (err) *err = stmt->getErrStr();
+        if (err) *err = db->getErrStr();
         return false;
     }
     stmt->bindUint64(1, id);
@@ -535,7 +535,7 @@ bool UserRepositoryImpl::UpdatePasswordHash(const uint64_t user_id,
         "UPDATE im_user_auth SET password_hash = ?, updated_at = NOW() WHERE user_id = ?";
     auto stmt = db->prepare(sql);
     if (!stmt) {
-        if (err) *err = stmt->getErrStr();
+        if (err) *err = db->getErrStr();
         return false;
     }
     stmt->bindString(1, new_password_hash);

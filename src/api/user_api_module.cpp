@@ -74,7 +74,7 @@ bool UserApiModule::onServerReady() {
 
                                  // 提取请求字段
                                  std::string nickname, avatar, motto, birthday;
-                                 uint32_t gender;
+                                 uint32_t gender = 0;
                                  Json::Value body;
                                  if (IM::ParseBody(req->getBody(), body)) {
                                      nickname = IM::JsonUtil::GetString(body, "nickname");

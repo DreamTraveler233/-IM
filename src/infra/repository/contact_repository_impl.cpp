@@ -702,7 +702,7 @@ bool ContactRepositoryImpl::GetContactApplyItemById(const uint64_t id,
         "WHERE ca.target_user_id = ? AND ca.status = 1 ";
     auto stmt = db->prepare(sql);
     if (!stmt) {
-        if (err) *err = stmt->getErrStr();
+        if (err) *err = db->getErrStr();
         return false;
     }
     stmt->bindUint64(1, id);

@@ -1,0 +1,13 @@
+Running 15s test @ http://127.0.0.1:8080/api/v1/common/send-test
+  2 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   785.41ms  729.74us 786.76ms   62.96%
+    Req/Sec    16.00      9.90    23.00    100.00%
+  Latency Distribution
+     50%  785.37ms
+     75%  785.97ms
+     90%  786.51ms
+     99%  786.76ms
+  27 requests in 15.07s, 3.30KB read
+Requests/sec:      1.79
+Transfer/sec:     223.90B

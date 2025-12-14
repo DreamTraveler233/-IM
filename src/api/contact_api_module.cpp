@@ -36,7 +36,7 @@ bool ContactApiModule::onServerReady() {
                                     IM::http::HttpSession::ptr /*session*/) {
                                  res->setHeader("Content-Type", "application/json");
 
-                                 uint64_t apply_id;
+                                 uint64_t apply_id = 0;
                                  std::string remark;
                                  Json::Value body;
                                  if (ParseBody(req->getBody(), body)) {
@@ -95,7 +95,7 @@ bool ContactApiModule::onServerReady() {
                                  }
 
                                  /*提取请求字段*/
-                                 uint64_t to_id;
+                                 uint64_t to_id = 0;
                                  std::string remark;
                                  Json::Value body;
                                  if (ParseBody(req->getBody(), body)) {
@@ -122,7 +122,7 @@ bool ContactApiModule::onServerReady() {
                                     IM::http::HttpSession::ptr /*session*/) {
                                  res->setHeader("Content-Type", "application/json");
 
-                                 uint64_t apply_id;
+                                 uint64_t apply_id = 0;
                                  std::string remark;
                                  Json::Value body;
                                  if (ParseBody(req->getBody(), body)) {
@@ -298,7 +298,7 @@ bool ContactApiModule::onServerReady() {
                                     IM::http::HttpSession::ptr /*session*/) {
                                  res->setHeader("Content-Type", "application/json");
 
-                                 uint64_t contact_id, group_id;
+                                 uint64_t contact_id = 0, group_id = 0;
                                  Json::Value body;
                                  if (ParseBody(req->getBody(), body)) {
                                      contact_id = IM::JsonUtil::GetUint64(body, "user_id");
@@ -330,7 +330,7 @@ bool ContactApiModule::onServerReady() {
                                     IM::http::HttpSession::ptr /*session*/) {
                                  res->setHeader("Content-Type", "application/json");
 
-                                 uint64_t contact_id;
+                                 uint64_t contact_id = 0;
                                  Json::Value body;
                                  if (ParseBody(req->getBody(), body)) {
                                      contact_id = IM::JsonUtil::GetUint64(body, "user_id");
@@ -361,7 +361,7 @@ bool ContactApiModule::onServerReady() {
                                     IM::http::HttpSession::ptr /*session*/) {
                                  res->setHeader("Content-Type", "application/json");
 
-                                 uint64_t target_id;
+                                 uint64_t target_id = 0;
                                  Json::Value body;
                                  if (ParseBody(req->getBody(), body)) {
                                      target_id = IM::JsonUtil::GetUint64(body, "user_id");
@@ -408,7 +408,7 @@ bool ContactApiModule::onServerReady() {
                                     IM::http::HttpSession::ptr /*session*/) {
                                  res->setHeader("Content-Type", "application/json");
 
-                                 uint64_t contact_id;
+                                 uint64_t contact_id = 0;
                                  std::string remark;
                                  Json::Value body;
                                  if (ParseBody(req->getBody(), body)) {
@@ -481,7 +481,7 @@ bool ContactApiModule::onServerReady() {
                                     IM::http::HttpSession::ptr /*session*/) {
                                  res->setHeader("Content-Type", "application/json");
 
-                                 uint64_t contact_id;
+                                 uint64_t contact_id = 0;
                                  Json::Value body;
                                  if (ParseBody(req->getBody(), body)) {
                                      contact_id = IM::JsonUtil::GetUint64(body, "user_id");

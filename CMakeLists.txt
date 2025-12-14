@@ -43,6 +43,9 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Optionally build the Qt Quick/QML client (XinYu-IM-QtClient)
+option(ENABLE_QT_CLIENT "Build Qt Quick desktop client" OFF)
+
 # 根据构建类型设置不同的编译选项
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g -Wall -Wno-deprecated -Werror -Wno-unused-function")
@@ -168,3 +171,13 @@ set_target_properties(im_server PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_APP_DI
 
 # Add tests subdirectory (unit/integration), tests/ own CMakeLists handles targets
 add_subdirectory(tests)
+
+if(ENABLE_QT_CLIENT)
+    # Look for sibling XinYu-IM-QtClient directory and add it
+    if(EXISTS ${PROJECT_SOURCE_DIR}/../XinYu-IM-QtClient/CMakeLists.txt)
+        message(STATUS "ENABLE_QT_CLIENT=ON: Adding XinYu-IM-QtClient subdirectory")
+        add_subdirectory(${PROJECT_SOURCE_DIR}/../XinYu-IM-QtClient ${CMAKE_BINARY_DIR}/qtclient)
+    else()
+        message(WARNING "ENABLE_QT_CLIENT=ON but XinYu-IM-QtClient not found at ${PROJECT_SOURCE_DIR}/../XinYu-IM-QtClient")
+    endif()
+endif()

@@ -37,8 +37,8 @@ bool TalkApiModule::onServerReady() {
                                     IM::http::HttpSession::ptr) {
                                  res->setHeader("Content-Type", "application/json");
 
-                                 uint64_t to_from_id;
-                                 uint8_t talk_mode;
+                                 uint64_t to_from_id = 0;
+                                 uint8_t talk_mode = 0;
                                  Json::Value body;
                                  if (ParseBody(req->getBody(), body)) {
                                      to_from_id = IM::JsonUtil::GetUint64(body, "to_from_id");
@@ -71,8 +71,8 @@ bool TalkApiModule::onServerReady() {
                                     IM::http::HttpSession::ptr) {
                                  res->setHeader("Content-Type", "application/json");
 
-                                 uint64_t to_from_id;
-                                 uint8_t talk_mode;
+                                 uint64_t to_from_id = 0;
+                                 uint8_t talk_mode = 0;
                                  Json::Value body;
                                  if (ParseBody(req->getBody(), body)) {
                                      to_from_id = IM::JsonUtil::GetUint64(body, "to_from_id");
@@ -104,8 +104,8 @@ bool TalkApiModule::onServerReady() {
                                                                    IM::http::HttpSession::ptr) {
             res->setHeader("Content-Type", "application/json");
 
-            uint64_t to_from_id;
-            uint8_t talk_mode;
+            uint64_t to_from_id = 0;
+            uint8_t talk_mode = 0;
             Json::Value body;
             if (ParseBody(req->getBody(), body)) {
                 to_from_id = IM::JsonUtil::GetUint64(body, "to_from_id");
@@ -159,8 +159,8 @@ bool TalkApiModule::onServerReady() {
                                                                    IM::http::HttpSession::ptr) {
             res->setHeader("Content-Type", "application/json");
 
-            uint64_t to_from_id;
-            uint8_t talk_mode;
+            uint64_t to_from_id = 0;
+            uint8_t talk_mode = 0;
             Json::Value body;
             if (ParseBody(req->getBody(), body)) {
                 to_from_id = IM::JsonUtil::GetUint64(body, "to_from_id");
@@ -192,8 +192,8 @@ bool TalkApiModule::onServerReady() {
                                                                     IM::http::HttpSession::ptr) {
             res->setHeader("Content-Type", "application/json");
 
-            uint64_t to_from_id;
-            uint8_t talk_mode, action;
+            uint64_t to_from_id = 0;
+            uint8_t talk_mode = 0, action = 0;
             Json::Value body;
             if (ParseBody(req->getBody(), body)) {
                 to_from_id = IM::JsonUtil::GetUint64(body, "to_from_id");
@@ -269,8 +269,8 @@ bool TalkApiModule::onServerReady() {
                                                                 IM::http::HttpSession::ptr) {
             res->setHeader("Content-Type", "application/json");
 
-            uint64_t to_from_id;
-            uint8_t talk_mode, action;
+            uint64_t to_from_id = 0;
+            uint8_t talk_mode = 0, action = 0;
             Json::Value body;
             if (ParseBody(req->getBody(), body)) {
                 to_from_id = IM::JsonUtil::GetUint64(body, "to_from_id");
